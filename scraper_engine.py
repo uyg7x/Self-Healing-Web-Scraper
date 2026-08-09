@@ -95,6 +95,9 @@ class ScraperEngine:
         products = self._extract_from_jsonld(soup, base_url)
         if products:
             logger.info(f"✓ JSON-LD succeeded! Found {len(products)} products")
+            # JSON-LD often has MRP - validate and fix to get selling price
+            products = [self._validate_selling_price(p, html) for p in products]
+            products = self._recover_prices_from_html(products, html)
             return products, {"strategy_index": -3, "method": "json_ld"}
 
         # Try CSS selectors
@@ -103,6 +106,8 @@ class ScraperEngine:
             products = self._extract_with_selectors(soup, base_url, selector_set)
             if products:
                 logger.info(f"✓ Strategy {i + 1} succeeded! Found {len(products)} products")
+                products = [self._validate_selling_price(p, html) for p in products]
+                products = self._recover_prices_from_html(products, html)
                 return products, {"strategy_index": i, "method": "css_selector"}
             logger.info(f"✗ Strategy {i + 1} found no products...")
 
@@ -111,6 +116,8 @@ class ScraperEngine:
         products = self._extract_with_regex(html, base_url, regex_fallback)
         if products:
             logger.info(f"✓ Regex succeeded! Found {len(products)} products")
+            products = [self._validate_selling_price(p, html) for p in products]
+            products = self._recover_prices_from_html(products, html)
             return products, {"strategy_index": -1, "method": "regex"}
 
         # 🔥 TRUE SELF-HEALING: Fuzzy matching when EVERYTHING fails
@@ -118,9 +125,197 @@ class ScraperEngine:
         products = self._self_heal_fuzzy_match(html, base_url)
         if products:
             logger.info(f"🧠 SELF-HEALING SUCCEEDED! Found {len(products)} products using intelligent matching")
+            products = [self._validate_selling_price(p, html) for p in products]
+            products = self._recover_prices_from_html(products, html)
             return products, {"strategy_index": -2, "method": "self_healing"}
 
         return [], {}
+
+    def _recover_prices_from_html(self, products: List[Dict], html: str) -> List[Dict]:
+        """
+        🔥 PRICE RECOVERY: When products were found but prices are N/A,
+        scan the raw HTML for price symbols near each product link.
+        This catches prices that are loaded dynamically but appear in HTML.
+
+        SMART PRICE LOGIC:
+        - Prefer "selling price" (current price) over MRP/original price
+        - Look for price patterns with strikethrough/old-price indicators
+        - If multiple prices found, pick the LOWER one (usually the deal)
+        """
+        if not products or not html:
+            return products
+
+        # Find all price occurrences with their positions AND context
+        price_patterns = [
+            (r'₹\s*([\d,]+(?:\.\d{2})?)', '₹'),
+            (r'Rs\.?\s*([\d,]+(?:\.\d{2})?)', 'Rs'),
+            (r'INR\s*([\d,]+(?:\.\d{2})?)', 'INR'),
+            (r'\$\s*([\d,]+(?:\.\d{2})?)', '$'),
+        ]
+
+        # First pass: collect all prices with HTML context
+        all_prices = []
+        for pattern, symbol in price_patterns:
+            for match in re.finditer(pattern, html):
+                price_str = match.group(1).replace(',', '')
+                try:
+                    price_val = float(price_str)
+                except ValueError:
+                    continue
+
+                # Get surrounding HTML context (100 chars before/after)
+                context_start = max(0, match.start() - 200)
+                context_end = min(len(html), match.end() + 50)
+                context = html[context_start:context_end].lower()
+
+                # Detect if this is an MRP/original price (not selling price)
+                is_mrp = any(marker in context for marker in [
+                    'strike', 'line-through', 'original', 'mrp', 'was',
+                    'crossed', 'old-price', 'compare-at', 'list-price',
+                    '_3auQ3N', '_2pXp4L'  # Flipkart's MRP CSS classes
+                ])
+
+                all_prices.append({
+                    'position': match.start(),
+                    'price': price_str,
+                    'price_val': price_val,
+                    'symbol': symbol,
+                    'full': match.group(0),
+                    'is_mrp': is_mrp
+                })
+
+        # Filter: prefer non-MRP prices, but keep all as fallback
+        selling_prices = [p for p in all_prices if not p['is_mrp']]
+        logger.info(
+            f"Price recovery: {len(all_prices)} total, "
+            f"{len(selling_prices)} are selling prices (not MRP)"
+        )
+
+        # For each product with N/A price, find the nearest SELLING price
+        for product in products:
+            if product.get('price') and product['price'] != 'N/A':
+                # Even if JSON-LD gave a price, verify it's not MRP
+                # If the existing price looks like MRP, try to find a better one
+                continue  # For now, trust JSON-LD's price if it gave one
+
+            # Find product link position in HTML
+            link = product.get('link', '')
+            product_pos = -1
+            if link and link != 'N/A':
+                link_slug = link.split('/')[-1].split('?')[0][:30] if link else ''
+                if link_slug:
+                    pos = html.find(link_slug)
+                    if pos > 0:
+                        product_pos = pos
+
+            # If no link found, assign prices sequentially
+            if product_pos < 0:
+                try:
+                    idx = products.index(product)
+                    if idx < len(all_prices):
+                        # Prefer selling prices over MRP
+                        if idx < len(selling_prices):
+                            loc = selling_prices[idx]
+                        else:
+                            loc = all_prices[idx]
+                        product['price'] = f"{loc['symbol']}{loc['price']}"
+                        try:
+                            product['price_float'] = float(loc['price'])
+                        except ValueError:
+                            pass
+                        continue
+                except ValueError:
+                    continue
+
+            # Find the closest SELLING price to this product's position
+            closest_price = None
+            min_distance = float('inf')
+            search_window = 2000
+
+            # First try selling prices only
+            for loc in selling_prices:
+                distance = abs(loc['position'] - product_pos)
+                if distance < min_distance and distance < search_window:
+                    min_distance = distance
+                    closest_price = loc
+
+            # If no selling price found nearby, fall back to any price
+            if not closest_price:
+                for loc in all_prices:
+                    distance = abs(loc['position'] - product_pos)
+                    if distance < min_distance and distance < search_window:
+                        min_distance = distance
+                        closest_price = loc
+
+            if closest_price:
+                product['price'] = f"{closest_price['symbol']}{closest_price['price']}"
+                try:
+                    product['price_float'] = float(closest_price['price'])
+                except ValueError:
+                    pass
+                mrp_note = " [was MRP]" if closest_price['is_mrp'] else ""
+                logger.debug(
+                    f"Recovered price {product['price']}{mrp_note} "
+                    f"for {product.get('name', '')[:30]}"
+                )
+
+        return products
+
+    def _validate_selling_price(self, product: Dict, html: str) -> Dict:
+        """
+        🔥 PRICE VALIDATION: For a product that has a price (from JSON-LD),
+        verify it's the selling price, not MRP. If it looks like MRP,
+        try to find a better (lower) price nearby in the HTML.
+        """
+        price_str = product.get('price', '')
+        if price_str == 'N/A' or not price_str:
+            return product
+
+        price_float = product.get('price_float', 0)
+        if not price_float or price_float < 100:
+            return product  # Skip if no real price
+
+        # Get product link slug
+        link = product.get('link', '')
+        if not link or link == 'N/A':
+            return product
+
+        link_slug = link.split('/')[-1].split('?')[0][:30]
+        product_pos = html.find(link_slug)
+        if product_pos < 0:
+            return product
+
+        # Look for prices AFTER this product's link (next product's prices are below)
+        # and BEFORE the next product link
+        window_end = min(len(html), product_pos + 1500)
+        window_html = html[product_pos:window_end]
+
+        # Find all ₹ prices in this window
+        prices_in_window = []
+        for match in re.finditer(r'₹\s*([\d,]+(?:\.\d{2})?)', window_html):
+            price_val_str = match.group(1).replace(',', '')
+            try:
+                price_val = float(price_val_str)
+                if price_val >= 100:  # Reasonable price
+                    prices_in_window.append(price_val)
+            except ValueError:
+                continue
+
+        if not prices_in_window:
+            return product
+
+        # If current price is higher than the LOWEST price in window,
+        # the current price is likely MRP - replace with the lower one
+        lowest = min(prices_in_window)
+        if price_float > lowest * 1.05:  # 5% margin to allow tiny differences
+            logger.debug(
+                f"Price {price_float} looks like MRP, "
+                f"using selling price {lowest} for {product.get('name', '')[:30]}"
+            )
+            product['price'] = f"₹{lowest:,.0f}"
+            product['price_float'] = lowest
+
+        return product
 
     def _extract_from_jsonld(self, soup: BeautifulSoup, base_url: str) -> List[Dict]:
         """

@@ -143,7 +143,7 @@ SITES_CONFIG = {
 
 MIT — see [LICENSE](LICENSE)
 
-## 🤝 Contributing
+##  Contributing
 
 Pull requests welcome. For major changes, open an issue first.
 
