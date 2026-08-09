@@ -208,6 +208,7 @@ What it does:
 - Includes a smart price recovery function that distinguishes MRP from selling prices
 - Handles retries with exponential backoff
 - Rotates User-Agent strings to avoid basic blocking
+    <img width="1664" height="928" alt="1786279645" src="https://github.com/user-attachments/assets/d615b438-7877-4137-9024-a9008291cac2" />
 
 <br>
 
@@ -222,6 +223,8 @@ What it does:
 - Tracks failure history (keeps last 10 failures per site)
 - Provides `get_site_health()` to check scraping statistics
 - Promotes frequently-successful strategies to be tried first
+
+<img width="1664" height="928" alt="1786279483" src="https://github.com/user-attachments/assets/274e63b6-b747-462c-85b6-824748105f66" />
 
 <br>
 
@@ -291,7 +294,7 @@ What it does:
 - Can be stopped with `scheduler.stop()` or Ctrl+C
 - Supports `run_now()` for immediate testing
 
----
+---[mermaid-diagram-1786274969537.pdf](https://github.com/user-attachments/files/30873294/mermaid-diagram-1786274969537.pdf)
 
 <div align="center">
 
