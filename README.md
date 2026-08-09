@@ -1,4 +1,4 @@
-#  Self-Healing Scraper
+#                         Self-Healing Scraper
 
 A resilient web scraper that automatically adapts to website redesigns. When a site changes its HTML structure, the scraper tries **4 fallback strategies** and learns which ones work best — so you never lose data after a redesign.
 
