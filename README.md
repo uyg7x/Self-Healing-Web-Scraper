@@ -1,4 +1,4 @@
-# 🤖 Self-Healing Scraper
+#  Self-Healing Scraper
 
 A resilient web scraper that automatically adapts to website redesigns. When a site changes its HTML structure, the scraper tries **4 fallback strategies** and learns which ones work best — so you never lose data after a redesign.
 
@@ -8,24 +8,24 @@ A resilient web scraper that automatically adapts to website redesigns. When a s
 
 ---
 
-## ✨ Features
+##  Features
 
 | Feature | Description |
 |---|---|
-| 🏷️ **JSON-LD Auto-Detection** | Extracts structured data (survives 90% of redesigns) |
-| 🔄 **Self-Healing Selectors** | Tries CSS → Regex → Fuzzy fallback chain |
-| 🎭 **Dual Fetching** | Simple HTTP requests + Playwright browser automation |
-| ✅ **Data Validation** | Rejects garbage data, checks quality scores |
-| 💾 **SQLite Database** | Structured storage with full history |
-| 🧠 **Self-Learning** | Promotes successful selectors to priority |
-| 📊 **CSV Export** | Per-search timestamped comparison files |
-| 💱 **Multi-Currency** | Auto-converts USD/GBP/INR prices |
-| 📧 **Email Alerts** | Notifications on scraping failures |
-| ⏰ **Daily Scheduler** | Runs automatically at 9 AM |
+|  **JSON-LD Auto-Detection** | Extracts structured data (survives 90% of redesigns) |
+|  **Self-Healing Selectors** | Tries CSS → Regex → Fuzzy fallback chain |
+|  **Dual Fetching** | Simple HTTP requests + Playwright browser automation |
+|  **Data Validation** | Rejects garbage data, checks quality scores |
+|  **SQLite Database** | Structured storage with full history |
+|  **Self-Learning** | Promotes successful selectors to priority |
+|  **CSV Export** | Per-search timestamped comparison files |
+|  **Multi-Currency** | Auto-converts USD/GBP/INR prices |
+|  **Email Alerts** | Notifications on scraping failures |
+|  **Daily Scheduler** | Runs automatically at 9 AM |
 
 ---
 
-## 🛡️ Extraction Strategy (Tried in Order)
+##  Extraction Strategy (Tried in Order)
 
 ```
 1. JSON-LD          → Schema.org structured data (most resilient)
@@ -44,7 +44,7 @@ When a site redesigns:
 
 ---
 
-## 🚀 Quick Start
+##  Quick Start
 
 ### 1. Install dependencies
 ```bash
@@ -59,7 +59,7 @@ python main.py
 
 ### 3. Enter a product to search
 ```
-🔍 Enter the product you want to search for: arduino uno
+ Enter the product you want to search for: arduino uno
 ```
 
 Output: `data/price_comparison_arduino_uno_20260809_143022.csv`
@@ -130,19 +130,21 @@ SITES_CONFIG = {
 
 - [x] JSON-LD auto-detection
 - [x] Expanded price patterns (₹, Rs., INR, USD, €)
-- [ ] 🤖 LLM-powered fallback (Gemini Flash / Ollama)
-- [ ] 📊 Streamlit live dashboard
-- [ ] 🔍 Visual diff tool (before/after redesign)
-- [ ] 🌐 Multi-language support (Hindi/English)
-- [ ] 📱 Slack/Discord webhook alerts
-- [ ] 🎯 Confidence scoring per product
+- [ ]  LLM-powered fallback (Gemini Flash / Ollama)
+- [ ]  Streamlit live dashboard
+- [ ]  Visual diff tool (before/after redesign)
+- [ ]  Multi-language support (Hindi/English)
+- [ ]  Slack/Discord webhook alerts
+- [ ]  Confidence scoring per product
 
 ---
 
-## 📜 License
+##  License
 
 MIT — see [LICENSE](LICENSE)
 
 ## 🤝 Contributing
 
 Pull requests welcome. For major changes, open an issue first.
+
+PJY
