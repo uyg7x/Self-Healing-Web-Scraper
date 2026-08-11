@@ -1,10 +1,8 @@
-<div align="center">
+# Self-Healing Scraper
 
-# Self-Healing  Scraper
+### A resilient web scraper that automatically adapts to website redesigns, with an LLM (Google Gemini) fallback for the hardest pages.
 
-### A resilient web scraper that automatically adapts to website redesigns
-
-When a site changes its HTML structure, the scraper tries **four fallback strategies** and learns which ones work best -- so you never lose data after a redesign.
+When a site changes its HTML structure, the scraper walks through **five extraction strategies** in order, learns which ones work best, and tags every result with a `Source` showing exactly which platform and which strategy produced it. The LLM step is opt-in per site so you stay in control of your API quota.
 
 <br>
 
@@ -15,349 +13,247 @@ When a site changes its HTML structure, the scraper tries **four fallback strate
 
 <br>
 
-[Quick Start](#quick-start) &nbsp;&bull;&nbsp; [Features](#features) &nbsp;&bull;&nbsp; [Architecture](#architecture) &nbsp;&bull;&nbsp; [How It Works](#how-it-works) &nbsp;&bull;&nbsp; [File Documentation](#file-documentation) &nbsp;&bull;&nbsp; [Roadmap](#roadmap)
-
-</div>
+[Quick Start](#quick-start) &nbsp;&bull;&nbsp; [Demo](#demo) &nbsp;&bull;&nbsp; [Features](#features) &nbsp;&bull;&nbsp; [Architecture](#architecture) &nbsp;&bull;&nbsp; [How It Works](#how-it-works) &nbsp;&bull;&nbsp; [File Documentation](#file-documentation) &nbsp;&bull;&nbsp; [Roadmap](#roadmap)
 
 ---
 
 <div align="center">
+
+## Demo
+
+</div>
+
+### Screenshots
+
+> Drop your screenshot files into `docs/screenshots/` using these exact filenames, then the images will show up here automatically.
+
+<br>
+
+**Terminal run showing all 5 strategies and the LLM opt-in prompt:**
+
+<!-- TODO: Drop your terminal screenshot here as docs/screenshots/terminal-run.png -->
+<p align="center">
+  <img src="docs/screenshots/terminal-run.png" alt="Terminal run showing all 5 strategies" width="900"/>
+  <br/>
+  <sub><i>Replace this image by saving your screenshot as <code>docs/screenshots/terminal-run.png</code></i></sub>
+</p>
+
+<br>
+
+**Generated CSV with the Source designation column:**
+
+<!-- TODO: Drop your CSV / spreadsheet screenshot here as docs/screenshots/csv-output.png -->
+<p align="center">
+  <img src="docs/screenshots/csv-output.png" alt="CSV output with Source column" width="900"/>
+  <br/>
+  <sub><i>Replace this image by saving your screenshot as <code>docs/screenshots/csv-output.png</code></i></sub>
+</p>
+
+<br>
+
+**Architecture / strategy flow diagram:**
+
+<!-- TODO: Drop your architecture diagram here as docs/screenshots/architecture.png -->
+<p align="center">
+  <img src="docs/screenshots/architecture.png" alt="Architecture diagram" width="900"/>
+  <br/>
+  <sub><i>Replace this image by saving your diagram as <code>docs/screenshots/architecture.png</code></i></sub>
+</p>
+
+<br>
+
+### Video walkthrough
+
+> Add your YouTube link below. Replace `YOUR_VIDEO_ID` with the 11-character ID from the YouTube URL (the part after `v=`).
+
+<br>
+
+<!-- TODO: Replace YOUR_VIDEO_ID with your actual YouTube video ID -->
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=YOUR_VIDEO_ID">
+    <img src="https://img.youtube.com/vi/YOUR_VIDEO_ID/0.jpg" alt="Watch the demo video" width="900"/>
+  </a>
+  <br/>
+  <sub><i>Click the image above to watch the demo. To make it work: open this README, find the line that says <code>YOUR_VIDEO_ID</code>, and replace BOTH occurrences with the 11-character ID from your YouTube link.</i></sub>
+</p>
+
+---
 
 ## Features
 
-</div>
-
 | Capability | Description |
 |---|---|
-| JSON-LD Auto-Detection | Extracts structured data that survives 90 percent of redesigns |
-| Self-Healing Selectors | Tries CSS then Regex then Fuzzy fallback chain |
-| Dual Fetching | Simple HTTP requests plus Playwright browser automation |
-| Data Validation | Rejects garbage data, checks quality scores |
-| SQLite Database | Structured storage with full history |
-| Self-Learning | Promotes successful selectors to priority |
-| CSV Export | Per-search timestamped comparison files |
-| Multi-Currency | Auto-converts USD, GBP, and INR prices |
-| Email Alerts | Notifications on scraping failures |
-| Daily Scheduler | Runs automatically at 9 AM |
+| JSON-LD auto-detection | Parses `<script type="application/ld+json">` blocks; survives most redesigns. |
+| CSS selector extraction | Tries each configured selector in priority order. |
+| Regex fallback | Pattern-matches raw HTML when CSS is broken. |
+| Fuzzy self-healing | Finds price symbols, scores nearby text blocks, builds product guesses. |
+| LLM (Gemini) fallback | Asks Google Gemini to read messy HTML when all four traditional methods fail. |
+| Source designation | Every result is tagged with `Website - Strategy` in the terminal, logs, and CSV. |
+| Opt-in AI mode | Gemini is only called when you answer `y` to a per-site prompt. |
+| Dual fetching | `requests` for fast static pages, Playwright for JavaScript-rendered ones. |
+| Smart price recovery | Distinguishes MRP from selling price; recovers missing prices from raw HTML. |
+| Multi-currency | Auto-converts USD, GBP, and EUR into Indian Rupees. |
+| Data validation | Rejects junk rows, scrapes, and bot-detection blocks. |
+| SQLite history | Stores every result with timestamp and extraction method. |
+| Self-learning | Promotes selectors and strategies that historically succeed. |
+| CSV export | Per-search timestamped comparison file in `data/`. |
+| Daily scheduler | Optional `scheduler.py` to run automatically at 09:00. |
+| Email alerts | Optional failure notifications via SMTP. |
 
 ---
-
-<div align="center">
 
 ## Architecture
 
-</div>
-
-<div align="center">
-
 ```
-+----------------------+
-|   User Input         |
-|   python main.py     |
-+----------+-----------+
-           |
-           v
-+----------------------+
-|  Load Configuration  |
-|  (config.py)         |
-+----------+-----------+
-           |
-           v
-+----------------------+
-|  For Each Site:      |
-|  1. Build URL        |
-|  2. Fetch Page       |
-|  3. Extract Data     |
-|  4. Validate         |
-|  5. Save to DB       |
-|  6. Update Memory    |
-+----------+-----------+
-           |
-           v
-+----------------------+
-|  Generate CSV        |
-|  Print Results       |
-+----------------------+
++------------------------------+
+|  User input: search term     |
+|  $ python main.py            |
++--------------+---------------+
+               |
+               v
++------------------------------+
+|  Load config (config.py)     |
+|  Build URL per site          |
++--------------+---------------+
+               |
+               v
++------------------------------+
+|  Fetch page                  |
+|  (requests or Playwright)    |
++--------------+---------------+
+               |
+               v
++------------------------------+
+|  extract_data() pipeline     |
+|                              |
+|  1. JSON-LD                  |
+|  2. CSS selector             |
+|  3. Regex                    |
+|  4. Fuzzy self-heal          |
+|  5. LLM (Gemini) -- opt-in   |
++--------------+---------------+
+               |
+               v
++------------------------------+
+|  Validate, save to DB,       |
+|  update selector history     |
++--------------+---------------+
+               |
+               v
++------------------------------+
+|  Export CSV, print summary   |
++------------------------------+
 ```
-
-</div>
 
 ---
-
-<div align="center">
 
 ## How It Works
 
-</div>
+### Extraction strategy order
 
-### Extraction Strategy (Tried in Order)
+The five strategies are tried in this order. The first one that returns usable products wins.
+
+1. **JSON-LD (structured data)**
+   - Parses `<script type="application/ld+json">` blocks.
+   - Reads `@type: "Product"` items, including nested `ItemList` and `Offer` data.
+   - Most resilient because it is machine-readable metadata, not HTML.
+
+2. **CSS selectors**
+   - Tries each selector in `config.SITES_CONFIG[...]["selectors"]` in priority order.
+   - Fastest when classes and IDs have not been renamed.
+
+3. **Regex fallback**
+   - Pattern-matches raw HTML using the regexes from `config.py`.
+   - Catches products even when the site has no structured data.
+
+4. **Fuzzy self-healing**
+   - Scans for currency symbols (`Rs.`, `INR`, `$`, `EUR`, etc.).
+   - Looks 500 characters before each price for a text block that "looks like" a product name.
+   - Scores candidates by length, word choice, and capitalization.
+
+5. **LLM fallback (Google Gemini) -- opt-in**
+   - Only reached if strategies 1-4 all return zero products.
+   - Sends a trimmed version of the HTML to `gemini-2.0-flash`.
+   - Parses the JSON list Gemini returns and tags every product as `Gemini AI (LLM)`.
+   - You are asked for confirmation in the terminal before it runs.
+
+### Source designation
+
+Every product ends up with a friendly source label, e.g.:
+
+| Method | CSV / terminal label |
+|---|---|
+| `json_ld` | `Website Name - JSON-LD (structured data)` |
+| `css_selector` | `Website Name - CSS selector` |
+| `regex` | `Website Name - Regex fallback` |
+| `self_healing` | `Website Name - Self-healing (fuzzy match)` |
+| `llm` | `Website Name - Gemini AI (LLM)` |
+
+The label appears in the terminal per site, in a summary at the end of the run, and as the first column of the output CSV.
+
+### Self-healing memory
 
 ```
-Strategy 1: JSON-LD
-  └── Parses <script type="application/ld+json">
-  └── Extracts @type="Product" data
-  └── Most resilient to CSS/HTML redesigns
+Run 1 (first time on a site)
+  Strategy 1 (JSON-LD)  -> FAIL
+  Strategy 2 (CSS)      -> FAIL
+  Strategy 3 (Regex)    -> FAIL
+  Strategy 4 (Fuzzy)    -> SUCCESS (15 products)
+  Saved to data/selector_history.json
 
-Strategy 2: CSS Selectors
-  └── Tries each selector from config in order
-  └── Fastest when CSS classes haven't changed
-
-Strategy 3: Regex Fallback
-  └── Pattern matching on raw HTML
-  └── Catches products even when CSS is broken
-
-Strategy 4: Fuzzy Self-Healing
-  └── Finds price symbols (Rs., INR, $, etc.)
-  └── Scores nearby text blocks
-  └── Last resort when everything else fails
+Run 2 (next time on the same site)
+  Reads history -> "Fuzzy worked last time"
+  Tries Strategy 4 first
+  SUCCESS in 2 seconds
 ```
 
-### Self-Healing Memory
+### Price recovery
 
 ```
-Run #1 (First time):
-  Try Strategy 1 (JSON-LD)       -> FAIL (no structured data)
-  Try Strategy 2 (CSS)           -> FAIL (class renamed)
-  Try Strategy 3 (Regex)         -> FAIL (pattern changed)
-  Try Strategy 4 (Fuzzy)         -> SUCCESS! Found 15 products
-  Save to history: best_method = "fuzzy"
-
-Run #2 (Next day):
-  Check history: best_method = "fuzzy"
-  Try Strategy 4 (Fuzzy) FIRST   -> SUCCESS in 2 seconds
-  Time saved: ~10 seconds
-```
-
-### Price Recovery
-
-```
-Step 1: JSON-LD extracts price "Rs. 4,000" (often the MRP)
-        |
-        v
-Step 2: Check 1500-char window AFTER product link
-        |
-        v
-Step 3: Find lowest non-struck-through price "Rs. 3,599"
-        |
-        v
-Step 4: If MRP is more than 5% higher, replace with selling price
-        |
-        v
-Final: Real selling price (matches the product page)
+Step 1: JSON-LD extracts "Rs. 4,000"  (often the MRP)
+Step 2: Look 1500 chars AFTER the product link
+Step 3: Find the lowest non-struck-through price "Rs. 3,599"
+Step 4: If MRP is more than 5% higher, replace with the lower one
+Result: Real selling price, matching the product page
 ```
 
 ---
 
-<div align="center">
-
-## File Documentation
-
-</div>
-
-### Project Structure
-
-```
-self_healing_scraper/
-+-- main.py              Interactive CLI runner
-+-- scraper_engine.py    4-strategy extraction pipeline
-+-- self_healing.py      Selector learning and memory system
-+-- validators.py        Data quality and garbage filtering
-+-- database.py          SQLite storage
-+-- alerts.py            Email notifications
-+-- scheduler.py         Daily scheduler
-+-- config.py            Site configs and constants
-+-- requirements.txt     Python dependencies
-+-- .gitignore           Excludes data/, venv/, etc.
-+-- LICENSE              MIT License
-+-- data/                Output folder (gitignored)
-   +-- scraper.db
-   +-- selector_history.json
-   +-- price_comparison_*.csv
-```
-
-### File-by-File Explanation
-
-<br>
-
-**main.py -- The Entry Point**
-
-This is the file you run. It handles user interaction, orchestrates all other modules, and produces the final CSV output.
-
-What it does:
-- Sets up logging to both file and console
-- Shows a welcome banner explaining limitations
-- Accepts product search input from the user
-- Loops through each configured website
-- Calls the scraper engine, validator, database, and self-healing system
-- Converts all prices to Indian Rupees
-- Generates a timestamped CSV file with comparison results
-
-<br>
-
-**scraper_engine.py -- The Heart of the Project**
-
-This file contains all the actual scraping logic and the four-strategy fallback pipeline. It is the most complex and important file.
-
-What it does:
-- Fetches web pages using either `requests` (fast HTTP) or `Playwright` (real browser)
-- Tries four extraction strategies in order:
-  1. JSON-LD structured data extraction
-  2. CSS selector matching
-  3. Regex pattern matching
-  4. Fuzzy self-healing with price symbol scoring
-- Includes a smart price recovery function that distinguishes MRP from selling prices
-- Handles retries with exponential backoff
-- Rotates User-Agent strings to avoid basic blocking
-    <img width="1664" height="928" alt="1786279645" src="https://github.com/user-attachments/assets/d615b438-7877-4137-9024-a9008291cac2" />
-
-<br>
-
-**self_healing.py -- The Memory System**
-
-This file tracks which extraction strategies work for each site and promotes successful ones to priority. It is the "brain" that makes the scraper smarter over time.
-
-What it does:
-- Loads and saves selector history to `data/selector_history.json`
-- Reorders CSS selectors based on past success rates
-- Records which strategy (JSON-LD, CSS, regex, fuzzy) worked for each site
-- Tracks failure history (keeps last 10 failures per site)
-- Provides `get_site_health()` to check scraping statistics
-- Promotes frequently-successful strategies to be tried first
-
-<img width="1664" height="928" alt="1786279483" src="https://github.com/user-attachments/assets/274e63b6-b747-462c-85b6-824748105f66" />
-
-<br>
-
-**validators.py -- The Garbage Collector**
-
-This file filters out junk data so only clean, valid products end up in your CSV and database.
-
-What it does:
-- Maintains a `GARBAGE_WORDS` list (menu items, filters, button text)
-- Checks if product names are too short (likely menu items)
-- Checks if prices are suspiciously low (likely accessories, not complete products)
-- Detects Amazon-specific block text
-- Cleans HTML entities (`&amp;` becomes `&`)
-- Removes invisible Unicode characters
-- Strips extra whitespace
-
-<br>
-
-**database.py -- The Storage Layer**
-
-This file manages SQLite database operations for persistent storage of all scraped products.
-
-What it does:
-- Creates the `products` table on first run
-- Inserts scraped products with metadata (site, timestamp, method)
-- Stores product name, price, price_float, price_inr, link, and specs
-- Tracks which extraction method was used
-- Provides `close()` for graceful shutdown
-
-<br>
-
-**config.py -- The Configuration**
-
-This file holds all site-specific settings, currency conversion rates, and User-Agent strings.
-
-What it does:
-- Defines `SITES_CONFIG` dictionary with all supported websites
-- Specifies selectors, regex patterns, and JS requirements per site
-- Configures currency conversion rates (INR, USD, GBP)
-- Sets retry counts, timeouts, and delays
-- Defines proxy and email alert settings
-- Specifies scheduler time (default 9:00 AM)
-
-<br>
-
-**alerts.py -- The Notifier**
-
-This file handles email notifications when scraping fails.
-
-What it does:
-- Connects to SMTP server (default Gmail)
-- Sends formatted email with error details
-- Includes site name, timestamp, error message, and retry count
-- Only sends if `EMAIL_CONFIG.enabled = True` in config
-- Provides troubleshooting steps in the email body
-
-<br>
-
-**scheduler.py -- The Automation**
-
-This file runs the scraper automatically at a scheduled time each day.
-
-What it does:
-- Uses the `schedule` library to trigger jobs at 9:00 AM daily
-- Runs in an infinite loop checking every minute
-- Can be started with `scheduler.start()` for background operation
-- Can be stopped with `scheduler.stop()` or Ctrl+C
-- Supports `run_now()` for immediate testing
-
----[mermaid-diagram-1786274969537.pdf](https://github.com/user-attachments/files/30873294/mermaid-diagram-1786274969537.pdf)
-
-<div align="center">
-
 ## Quick Start
-
-</div>
 
 ### Prerequisites
 
 - Python 3.10 or higher
-- pip package manager
-- Git (for cloning)
+- `pip` package manager
+- A Google Gemini API key (only needed if you want to use the LLM fallback; everything else works without one)
 
 ### Installation
 
 ```bash
-# Clone the repository
 git clone https://github.com/uyg7x/Self-Healing-Scraping-.git
 cd self_healing_scraper
 
-# Install dependencies
 pip install -r requirements.txt
-
-# Install Playwright browser
 playwright install chromium
 ```
 
-### Usage
+### Run
 
 ```bash
-# Run the interactive scraper
 python main.py
 ```
 
-### Example Session
+You will be prompted for a product name. The scraper walks through every configured site, applies the four traditional strategies, and asks before invoking Gemini on any site where they all fail.
 
-```
-============================================================
-SELF-HEALING E-COMMERCE PRICE COMPARATOR (v3)
-============================================================
-REALITY CHECK: Amazon, Flipkart, Ajio, Meesho, ShopClues,
-GlowRoad and Goodreads have heavy anti-bot systems. If they fail,
-that is NORMAL. Robu.in, Sapna Online and BooksToScrape usually work.
-============================================================
-
-Enter the product you want to search for: arduino uno
-
-Searching 'arduino uno' across 4 platforms...
-```
-
-The output CSV is saved to `data/price_comparison_<query>_<timestamp>.csv`.
+Output CSVs are saved as `data/price_comparison_<query>_<timestamp>.csv`.
 
 ---
 
-<div align="center">
-
 ## Configuration
 
-</div>
+### Adding a new site
 
-### Adding a New Site
-
-Edit [config.py](config.py) and add a new entry to `SITES_CONFIG`:
+Edit `config.py` and add an entry under `SITES_CONFIG`:
 
 ```python
 "my_site": {
@@ -378,21 +274,18 @@ Edit [config.py](config.py) and add a new entry to `SITES_CONFIG`:
 }
 ```
 
-### Currency Conversion
-
-Default rates in `config.py`:
+### Currency conversion
 
 ```python
 CURRENCY_TO_INR = {
     "INR": 1.0,
     "USD": 88.0,
     "GBP": 112.0,
+    "EUR": 95.0,
 }
 ```
 
-### Email Alerts
-
-Enable in `config.py`:
+### Email alerts
 
 ```python
 EMAIL_CONFIG = {
@@ -405,37 +298,211 @@ EMAIL_CONFIG = {
 }
 ```
 
+### Daily scheduler
+
+Set `SCHEDULE_TIME = "HH:MM"` in `config.py` and run `python scheduler.py` in the background.
+
 ---
 
-<div align="center">
+## LLM Fallback (Google Gemini)
+
+The 5th strategy uses Google's Gemini API to read messy HTML when nothing else works.
+
+### How to get a free API key
+
+1. Open https://aistudio.google.com/apikey
+2. Sign in with any Google account.
+3. Click **Create API key**.
+4. Copy the key (it looks like `AIzaSy...`).
+
+Free-tier limits on `gemini-2.0-flash` are 15 requests per minute and 1,500 per day -- plenty for this scraper.
+
+### How to provide the key
+
+The code reads the key in this order:
+
+1. **Environment variable** (recommended):
+
+   ```powershell
+   # Windows PowerShell (current session)
+   $env:GEMINI_API_KEY = "AIzaSy...your_key_here"
+
+   # Or set it permanently: System Properties -> Environment Variables
+   ```
+
+2. **`.env` file at the project root** (also recommended, already gitignored):
+
+   ```env
+   GEMINI_API_KEY=AIzaSy...your_key_here
+   ```
+
+   A template is provided in `.env.example`.
+
+### How the opt-in prompt works
+
+When all four traditional strategies fail for a site, the scraper prints:
+
+```
+[WARN] No output found on Amazon India after 4 strategies.
+No output found. Use LLM (Google Gemini) mode for Amazon India? [y/N]:
+```
+
+| You type | What happens |
+|---|---|
+| `y` + Enter | Gemini is called for that site only. Results tagged `Amazon India - Gemini AI (LLM)`. |
+| `n` (or just Enter) | The site is skipped. No API call, no quota used. |
+
+This happens **per site** -- you can pick exactly which blocked sites to retry with AI.
+
+---
+
+## Project Structure
+
+```
+self_healing_scraper/
+|-- main.py                Interactive CLI runner
+|-- scraper_engine.py      5-strategy extraction pipeline
+|-- llm_healer.py          5th strategy: Google Gemini fallback
+|-- self_healing.py        Selector learning and history
+|-- validators.py          Data quality and garbage filtering
+|-- database.py            SQLite storage
+|-- alerts.py              Email notifications
+|-- scheduler.py           Daily scheduler
+|-- config.py              Site configs, currency, Gemini settings
+|-- requirements.txt       Python dependencies
+|-- LICENSE                MIT License
+|-- README.md              This file
+|-- .env.example           Template for local secrets (real .env is gitignored)
+|-- docs/
+|   |-- screenshots/       Drop your demo screenshots here
+|-- data/                  Output folder (gitignored, created at runtime)
+   |-- scraper.db
+   |-- selector_history.json
+   |-- scraper.log
+   |-- price_comparison_*.csv
+```
+
+---
+
+## File Documentation
+
+### `main.py` -- the entry point
+
+What it does:
+
+- Sets up logging to file and console.
+- Shows the welcome banner.
+- Accepts a product search term from the user.
+- Loops through every configured site, calls the scraper engine, validator, database, and self-healing system.
+- Converts all prices to Indian Rupees.
+- For sites where all four strategies fail, asks the user before calling Gemini.
+- Generates a timestamped CSV with the `Source` designation column.
+
+### `scraper_engine.py` -- the heart of the project
+
+What it does:
+
+- Fetches pages via `requests` (fast) or Playwright (real browser for JavaScript).
+- Tries the five extraction strategies in order.
+- Includes smart price recovery (MRP vs selling price).
+- Exposes `extract_with_llm()` for the interactive AI prompt in `main.py`.
+- Handles retries with exponential backoff and User-Agent rotation.
+
+### `llm_healer.py` -- the Gemini fallback
+
+What it does:
+
+- Trims the HTML (removes `<script>`, `<style>`, comments; caps at 20,000 chars).
+- Sends a strict prompt that asks Gemini for a JSON list `[{name, price, link}, ...]`.
+- Strips ` ```json ` fences and extracts the first `[...]` block.
+- Catches every exception and returns `[]` -- never crashes the scraper.
+- Lazily imports `google-generativeai` so the rest of the app still runs without it.
+
+### `self_healing.py` -- the memory system
+
+What it does:
+
+- Loads and saves selector history to `data/selector_history.json`.
+- Reorders CSS selectors by past success rate.
+- Records which strategy (JSON-LD, CSS, regex, fuzzy, LLM) worked for each site.
+- Tracks the last 10 failures per site.
+- Promotes frequently-successful strategies to be tried first.
+
+### `validators.py` -- the garbage collector
+
+What it does:
+
+- Maintains a `GARBAGE_WORDS` list (menu items, filter text, button labels).
+- Rejects product names that are too short or too long.
+- Rejects suspicious prices (e.g. too low, missing digits).
+- Detects Amazon-specific block text.
+- Cleans HTML entities (`&amp;` -> `&`).
+- Strips invisible Unicode characters.
+
+### `database.py` -- the storage layer
+
+What it does:
+
+- Creates the `products` table on first run.
+- Inserts each scraped product with site, timestamp, and method metadata.
+- Stores name, price, price_float, price_inr, link, specs.
+- Exposes `close()` for graceful shutdown.
+
+### `config.py` -- the configuration
+
+What it does:
+
+- Defines `SITES_CONFIG` (all supported sites, selectors, regex, currency).
+- Sets retry counts, timeouts, delays, proxy settings.
+- Defines Gemini settings: `GEMINI_API_KEY`, `GEMINI_MODEL`, `LLM_HTML_MAX_CHARS`.
+- Sets email alert and scheduler configuration.
+
+### `alerts.py` -- the notifier
+
+What it does:
+
+- Connects to an SMTP server (default Gmail).
+- Sends a formatted email with site name, timestamp, error message, and retry count.
+- Only active when `EMAIL_CONFIG.enabled = True` in `config.py`.
+
+### `scheduler.py` -- the automation
+
+What it does:
+
+- Uses the `schedule` library to trigger `main.py` at `SCHEDULE_TIME` daily.
+- Runs in an infinite loop checking every minute.
+- Supports `run_now()` for immediate testing.
+
+---
 
 ## Important Limitations
 
-</div>
+### Sites that WILL work
 
-### Sites That WILL Work
-
-- books.toscrape.com (practice site, no anti-bot)
-- robu.in (simple Indian e-commerce)
+- `books.toscrape.com` (practice site, no anti-bot)
+- `robu.in` (simple Indian e-commerce)
 - Any site with JSON-LD structured data
-- Most static HTML sites without Cloudflare/Akamai protection
+- Most static HTML sites without Cloudflare / Akamai protection
 
-### Sites That MIGHT Work
+### Sites that MIGHT work
 
 - Sites with moderate anti-bot (VijaySales, Meesho with delays)
 - Sites that allow Playwright browser automation
 
-### Sites That WILL NOT Work
+### Sites that WILL NOT work
 
-- amazon.in and flipkart.com -- Aggressive bot detection with CAPTCHA and fingerprinting
+- `amazon.in` and `flipkart.com` -- aggressive bot detection with CAPTCHA and fingerprinting
 - Pure JavaScript-rendered SPAs that return empty HTML to scrapers
 - Sites using image-based prices (canvas rendering)
 - Sites with API-only content (no HTML to scrape)
 
-### Why These Sites Block Scrapers
+> **For Amazon, Flipkart, and similar sites**, the LLM (Gemini) fallback is your best shot. It can read the rendered page through the HTML even when traditional selectors fail. See the [LLM Fallback section](#llm-fallback-google-gemini).
+
+### Why these sites block scrapers
 
 Modern e-commerce sites use:
-- CAPTCHA challenges (visual and behavioral tests)
+
+- CAPTCHA challenges (visual and behavioral)
 - IP reputation checks (blocking datacenter IPs)
 - Browser fingerprinting (canvas, WebGL, fonts, plugins)
 - Behavioral analysis (mouse movement, scroll patterns)
@@ -444,21 +511,18 @@ Modern e-commerce sites use:
 
 ---
 
-<div align="center">
-
 ## Roadmap
 
-</div>
-
 - [x] JSON-LD auto-detection
-- [x] Expanded price patterns (Rs., INR, USD, EUR)
+- [x] CSS selector extraction
+- [x] Regex fallback
+- [x] Fuzzy self-healing
+- [x] LLM (Google Gemini) fallback with opt-in prompt
+- [x] Source designation in terminal, logs, and CSV
 - [x] Smart MRP vs selling price detection
 - [x] Price recovery from raw HTML
-- [x] Hinglish code comments for readability
-- [ ] LLM-powered fallback (Gemini Flash or Ollama)
 - [ ] Streamlit live dashboard
-- [ ] Visual diff tool (before and after redesign)
-- [ ] Multi-language support (Hindi and English)
+- [ ] Visual diff tool (before / after redesign)
 - [ ] Slack and Discord webhook alerts
 - [ ] Confidence scoring per product
 - [ ] Docker containerization
@@ -466,53 +530,30 @@ Modern e-commerce sites use:
 
 ---
 
-<div align="center">
-
 ## Tech Stack
-
-</div>
 
 | Component | Technology |
 |---|---|
 | Language | Python 3.10+ |
-| HTML Parsing | BeautifulSoup4 with lxml backend |
-| HTTP Requests | requests library with retry logic |
-| Browser Automation | Playwright (Chromium) |
+| HTML parsing | BeautifulSoup4 with `lxml` backend |
+| HTTP requests | `requests` with retry logic |
+| Browser automation | Playwright (Chromium) |
+| LLM | Google Gemini (`gemini-2.0-flash`) via `google-generativeai` |
 | Database | SQLite3 (built-in) |
-| Scheduling | schedule library |
-| Logging | Python logging module |
+| Scheduling | `schedule` library |
+| Logging | Python `logging` module |
 
 ---
 
-
-
 ## License
-
-</div>
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
 ---
 
-<div align="center">
-
 ## Acknowledgments
-
-</div>
 
 - BeautifulSoup4 for robust HTML parsing
 - Playwright team for browser automation
+- Google for the free Gemini API
 - The open-source community for inspiration
-- Everyone who reported issues and contributed fixes
-
----
-
-<div align="center">
-
-### Built for resilience. Designed to adapt. Made for hackers.
-
-<br>
-
-**Star this repository if it helped you**
-
-</div>

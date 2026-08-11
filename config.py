@@ -93,3 +93,34 @@ VALIDATION_RULES = {
     "product_name": {"min_length": 5, "max_length": 200, "forbidden_patterns": [r"^(click|subscribe|login)", r"^https?://"]},
     "price": {"min_length": 1, "max_length": 20, "forbidden_patterns": [r"^[^0-9]*$"]},
 }
+
+# ----------------------------------------------------------------------
+# LLM HEALER (Gemini) SETTINGS
+# ----------------------------------------------------------------------
+# Used by llm_healer.py as the 5th and final fallback strategy.
+#
+# We read the API key ONLY from the environment variable GEMINI_API_KEY.
+# NEVER hardcode your key here -- it will be pushed to GitHub and can
+# be stolen. Instead, do ONE of the following on your local machine:
+#
+#   1. Set it in your shell before running:
+#        Windows PowerShell:
+#          $env:GEMINI_API_KEY = "AIzaSy...your_key_here"
+#        macOS / Linux:
+#          export GEMINI_API_KEY="AIzaSy...your_key_here"
+#
+#   2. Put it in a .env file at the project root (already in .gitignore):
+#          GEMINI_API_KEY=AIzaSy...your_key_here
+#
+# Get a free key in ~30 seconds at:
+#   https://aistudio.google.com/apikey
+# ----------------------------------------------------------------------
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+
+# Free-tier model. gemini-2.0-flash is fast, cheap, and great for this.
+GEMINI_MODEL = "gemini-2.0-flash"
+
+# How many characters of cleaned HTML to send to Gemini.
+# 20,000 is a safe balance between "enough context" and "stays under
+# free-tier token limits". Bump this up if you have a paid plan.
+LLM_HTML_MAX_CHARS = 20000

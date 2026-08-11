@@ -20,6 +20,10 @@ from config import (
     USER_AGENTS, MAX_RETRIES, RETRY_DELAY, REQUEST_TIMEOUT,
     DELAY_BETWEEN_REQUESTS, PROXY_CONFIG
 )
+# 5th and final fallback: ask Google Gemini to "read" the page for us.
+# We only import it here (not in config) so the rest of the engine stays
+# importable even if the user hasn't installed google-generativeai yet.
+from llm_healer import LLMHealer
 
 logger = logging.getLogger(__name__)
 
@@ -32,11 +36,15 @@ class ScraperEngine:
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             "Accept-Language": "en-US,en;q=0.5",
         })
-        
+
         self.proxy = None
         if PROXY_CONFIG.get("enabled") and PROXY_CONFIG.get("proxies"):
             self.proxy = random.choice(PROXY_CONFIG["proxies"])
             self.session.proxies = {"http": self.proxy, "https": self.proxy}
+
+        # Lazily build the LLM healer. It is only USED if every other
+        # strategy fails, so it doesn't slow down the happy path.
+        self.llm_healer = LLMHealer()
     
     def fetch_page(self, url: str, js_required: bool = False) -> Optional[str]:
         delay = random.uniform(*DELAY_BETWEEN_REQUESTS)
@@ -128,6 +136,27 @@ class ScraperEngine:
             products = [self._validate_selling_price(p, html) for p in products]
             products = self._recover_prices_from_html(products, html)
             return products, {"strategy_index": -2, "method": "self_healing"}
+
+        # 🤖 5th STRATEGY: Ask Google Gemini to read the page.
+        # Only reached if JSON-LD, CSS, regex, and fuzzy self-healing ALL
+        # returned nothing. We pass a search term hint (the last word(s)
+        # from the URL, e.g. "harry-potter-books") to help Gemini focus.
+        logger.warning(
+            "All 4 strategies failed. Activating LLM HEALER (Gemini) as last resort..."
+        )
+        search_hint = self._guess_search_term(base_url)
+        products = self.llm_healer.heal(html, search_hint)
+        if products:
+            logger.info(
+                f"🤖 LLM HEALER SUCCEEDED! Found {len(products)} product(s) via Gemini."
+            )
+            # Best-effort price cleanup, same as the other strategies.
+            try:
+                products = [self._validate_selling_price(p, html) for p in products]
+                products = self._recover_prices_from_html(products, html)
+            except Exception as e:
+                logger.debug(f"LLMHealer: post-processing skipped due to: {e}")
+            return products, {"strategy_index": -4, "method": "llm"}
 
         return [], {}
 
@@ -674,5 +703,56 @@ class ScraperEngine:
         # Return first link if no product link found
         if links:
             return urljoin(base_url, links[0])
-        
+
         return "N/A"
+
+    def extract_with_llm(self, html: str, base_url: str, search_hint: str = "") -> List[Dict]:
+        """
+        Public wrapper for the 5th (LLM) strategy.
+
+        Used by main.py AFTER the user confirms "yes, use AI mode" in the
+        terminal. The auto-fallback in extract_data() still works as a
+        safety net if this is never called.
+        """
+        if not html:
+            return []
+        hint = search_hint or self._guess_search_term(base_url)
+        products = self.llm_healer.heal(html, hint)
+        if not products:
+            return []
+        # Best-effort price cleanup, same as the other strategies.
+        try:
+            products = [self._validate_selling_price(p, html) for p in products]
+            products = self._recover_prices_from_html(products, html)
+        except Exception as e:
+            logger.debug(f"LLMHealer: post-processing skipped due to: {e}")
+        return products
+
+    def _guess_search_term(self, base_url: str) -> str:
+        """
+        Best-effort search-term hint for the LLM healer.
+
+        We pull the last meaningful chunk of the URL path. Examples:
+          .../search?q=harry+potter+books  -> "harry potter books"
+          .../catalog/electronics/laptops -> "laptops"
+
+        Falls back to "products" if we can't figure anything out.
+        Gemini still does the heavy lifting either way.
+        """
+        try:
+            from urllib.parse import urlparse, unquote_plus, parse_qs
+            parsed = urlparse(base_url)
+
+            # 1. Prefer ?q= or ?s= or ?query= query strings
+            qs = parse_qs(parsed.query)
+            for key in ("q", "s", "query", "search", "searchTerm"):
+                if key in qs and qs[key]:
+                    return unquote_plus(qs[key][0]).replace("+", " ").strip()
+
+            # 2. Otherwise use the last non-empty path segment
+            parts = [p for p in parsed.path.split("/") if p]
+            if parts:
+                return unquote_plus(parts[-1]).replace("-", " ").replace("_", " ").strip()
+        except Exception:
+            pass
+        return "products"
