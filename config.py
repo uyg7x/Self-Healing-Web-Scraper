@@ -54,7 +54,7 @@ SITES_CONFIG = {
     "books_toscrape": {
         "name": "Books to Scrape (Practice)",
         "url": "http://books.toscrape.com",
-        "base_search_url": "http://books.toscrape.com/",
+        "base_search_url": "http://books.toscrape.com/catalogue/page-1.html",
         "js_required": False,
         "currency": "GBP",
         "selectors": [

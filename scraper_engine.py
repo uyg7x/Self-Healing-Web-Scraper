@@ -29,13 +29,11 @@ logger = logging.getLogger(__name__)
 
 class ScraperEngine:
     def __init__(self):
-        self.user_agent = random.choice(USER_AGENTS)
+        # Use a modern, real browser User-Agent (Chrome 120 for Robu.in compatibility)
+        self.user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         self.session = requests.Session()
-        self.session.headers.update({
-            "User-Agent": self.user_agent,
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Accept-Language": "en-US,en;q=0.5",
-        })
+        # Inject stealth headers immediately
+        self.session.headers.update(self._get_stealth_headers())
 
         self.proxy = None
         if PROXY_CONFIG.get("enabled") and PROXY_CONFIG.get("proxies"):
@@ -45,30 +43,77 @@ class ScraperEngine:
         # Lazily build the LLM healer. It is only USED if every other
         # strategy fails, so it doesn't slow down the happy path.
         self.llm_healer = LLMHealer()
-    
+
+    def _get_stealth_headers(self):
+        """Returns headers that mimic a real human browser to bypass 403 blocks."""
+        return {
+            "User-Agent": self.user_agent,
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.5",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Connection": "keep-alive",
+            "Upgrade-Insecure-Requests": "1",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "none",
+            "Sec-Fetch-User": "?1",
+        }
+
+    @staticmethod
+    def _looks_binary(html: str) -> bool:
+        """
+        True if the page is mostly non-printable bytes (bad decode).
+        Relaxed threshold so real pages like BooksToScrape aren't rejected.
+        """
+        if not html or len(html) < 100:
+            return True
+        
+        # Sample the first 5000 chars
+        sample = html[:5000]
+        printable = sum(1 for c in sample if c.isprintable() or c in "\n\r\t ")
+        ratio = printable / len(sample)
+        
+        # Only reject if LESS than 60% printable (was too strict before)
+        return ratio < 0.6
+
     def fetch_page(self, url: str, js_required: bool = False) -> Optional[str]:
         delay = random.uniform(*DELAY_BETWEEN_REQUESTS)
         time.sleep(delay)
-        
+
         if js_required:
             return self._fetch_with_playwright(url)
         else:
             return self._fetch_with_requests(url)
-    
+
     def _fetch_with_requests(self, url: str) -> Optional[str]:
         for attempt in range(MAX_RETRIES):
             try:
                 logger.info(f"Fetching {url} (attempt {attempt + 1})")
-                response = self.session.get(url, timeout=REQUEST_TIMEOUT)
+                # Pass headers explicitly to ensure they're sent with each request
+                response = self.session.get(url, headers=self._get_stealth_headers(), timeout=REQUEST_TIMEOUT)
                 response.raise_for_status()
+
+                # CRITICAL FIX: requests defaults to ISO-8859-1 which breaks UTF-8 sites like BooksToScrape
+                if not response.encoding or response.encoding.lower() == "iso-8859-1":
+                    response.encoding = response.apparent_encoding
+
+                html_text = response.text
                 
-                content = response.text.lower()
-                if any(block in content for block in ["captcha", "robot check", "403 forbidden"]):
+                # Check if response looks like binary garbage (bad decode)
+                if self._looks_binary(html_text):
+                    logger.warning(f"Response looks like binary data, retrying {url}")
+                    if attempt < MAX_RETRIES - 1:
+                        time.sleep(RETRY_DELAY * (attempt + 1))
+                        continue
+                    return None
+
+                content = html_text.lower()
+                if any(block in content for block in ["captcha", "robot check", "403 forbidden", "access denied"]):
                     logger.warning(f"Possible bot detection at {url}")
                     if attempt < MAX_RETRIES - 1:
                         time.sleep(RETRY_DELAY * (attempt + 1))
                         continue
-                return response.text
+                return html_text
             except requests.RequestException as e:
                 logger.error(f"Request failed (attempt {attempt + 1}): {e}")
                 if attempt < MAX_RETRIES - 1:
@@ -88,6 +133,15 @@ class ScraperEngine:
                     page.wait_for_timeout(3000)
                     html = page.content()
                     browser.close()
+                    
+                    # Check if response looks like binary garbage
+                    if self._looks_binary(html):
+                        logger.warning(f"Playwright response looks like binary data, retrying {url}")
+                        if attempt < MAX_RETRIES - 1:
+                            time.sleep(RETRY_DELAY * (attempt + 1))
+                            continue
+                        return None
+                    
                     return html
             except Exception as e:
                 logger.error(f"Playwright error: {e}")

@@ -11,11 +11,23 @@ Features:
 """
 
 import sys
+import io
 import logging
 import csv
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import quote_plus
+
+# CRITICAL: Fix Windows Unicode crashes (cp1252 error) for emojis and ₹ symbols
+if sys.platform.startswith("win"):
+    try:
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    except (ValueError, AttributeError):
+        pass
+    try:
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+    except (ValueError, AttributeError):
+        pass
 
 from config import SITES_CONFIG, LOG_LEVEL, LOG_FILE, DATA_DIR, CURRENCY_TO_INR
 from scraper_engine import ScraperEngine
@@ -51,8 +63,8 @@ def setup_logging():
         level=getattr(logging, LOG_LEVEL),
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
         handlers=[
-            logging.FileHandler(str(LOG_FILE)),
-            logging.StreamHandler(sys.stdout),
+            logging.FileHandler(str(LOG_FILE), encoding="utf-8"),
+            logging.StreamHandler(sys.stderr),
         ]
     )
     return logging.getLogger(__name__)
@@ -124,7 +136,7 @@ def scrape_site(site_key, site_config, engine, healing, validator, db, alerts,
             print(f"     Skipping LLM mode for {site_name}.")
             return
 
-    valid_products = validator.filter_products(products)
+    valid_products = validator.filter_products(products, search_term)
     if not valid_products:
         logger.warning(f"All products failed validation on {site_name}")
         return
@@ -217,6 +229,7 @@ def run_interactive_search():
             'Website Name',
             'Product Name',
             'Price (INR)',
+            'Relevance Score',  # NEW: 0-100 score from the RelevanceScorer
             'Specifications',
             'Product Link',
             'Date',
@@ -231,6 +244,7 @@ def run_interactive_search():
                     'Website Name':     row.get('website'),
                     'Product Name':     row.get('name'),
                     'Price (INR)':      row.get('price_inr'),
+                    'Relevance Score':  row.get('_relevance_score', 'N/A'),
                     'Specifications':   row.get('specs'),
                     'Product Link':     row.get('link'),
                     'Date':             row.get('date'),
