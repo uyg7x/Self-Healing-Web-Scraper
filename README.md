@@ -4,7 +4,7 @@
 
 ### A resilient web scraper that automatically adapts to website redesigns
 
-When a site changes its HTML structure, the scraper tries **four fallback strategies** and learns which ones work best -- so you never lose data after a redesign.
+When a site changes its HTML structure, the scraper tries **five fallback strategies** and learns which ones work best -- so you never lose data after a redesign.
 
 <br>
 
@@ -35,8 +35,10 @@ When a site changes its HTML structure, the scraper tries **four fallback strate
 | Data Validation | Rejects garbage data, checks quality scores |
 | SQLite Database | Structured storage with full history |
 | Self-Learning | Promotes successful selectors to priority |
-| CSV Export | Per-search timestamped comparison files |
-| Multi-Currency | Auto-converts USD, GBP, and INR prices |
+| LLM Fallback | Google Gemini AI as 5th extraction strategy |
+| Web Dashboard | Streamlit UI with charts and live feed |
+| Breakage Simulator | Demo mode that showcases the self-healing cascade |
+| Docker | One-command deployment with Docker Compose |
 | Email Alerts | Notifications on scraping failures |
 | Daily Scheduler | Runs automatically at 9 AM |
 
@@ -109,7 +111,11 @@ Strategy 3: Regex Fallback
 Strategy 4: Fuzzy Self-Healing
   └── Finds price symbols (Rs., INR, $, etc.)
   └── Scores nearby text blocks
-  └── Last resort when everything else fails
+
+Strategy 5: LLM Healer (Gemini AI)
+  └── Sends cleaned HTML to Google Gemini
+  └── AI extracts product data semantically
+  └── Survives total site redesigns
 ```
 
 ### Self-Healing Memory
@@ -158,15 +164,19 @@ Final: Real selling price (matches the product page)
 
 ```
 self_healing_scraper/
-+-- main.py              Interactive CLI runner
-+-- scraper_engine.py    4-strategy extraction pipeline
++-- main.py              Interactive CLI runner (with --demo flag)
++-- dashboard.py         Streamlit web dashboard
++-- scraper_engine.py    5-strategy extraction pipeline
 +-- self_healing.py      Selector learning and memory system
 +-- validators.py        Data quality and garbage filtering
++-- llm_healer.py        Google Gemini LLM fallback
 +-- database.py          SQLite storage
 +-- alerts.py            Email notifications
 +-- scheduler.py         Daily scheduler
 +-- config.py            Site configs and constants
 +-- requirements.txt     Python dependencies
++-- Dockerfile           Container build config
++-- docker-compose.yml   One-command deployment
 +-- .gitignore           Excludes data/, venv/, etc.
 +-- LICENSE              MIT License
 +-- data/                Output folder (gitignored)
@@ -196,15 +206,16 @@ What it does:
 
 **scraper_engine.py -- The Heart of the Project**
 
-This file contains all the actual scraping logic and the four-strategy fallback pipeline. It is the most complex and important file.
+This file contains all the actual scraping logic and the five-strategy fallback pipeline. It is the most complex and important file.
 
 What it does:
 - Fetches web pages using either `requests` (fast HTTP) or `Playwright` (real browser)
-- Tries four extraction strategies in order:
+- Tries five extraction strategies in order:
   1. JSON-LD structured data extraction
   2. CSS selector matching
   3. Regex pattern matching
   4. Fuzzy self-healing with price symbol scoring
+  5. LLM Healer via Google Gemini (last resort)
 - Includes a smart price recovery function that distinguishes MRP from selling prices
 - Handles retries with exponential backoff
 - Rotates User-Agent strings to avoid basic blocking
@@ -324,7 +335,28 @@ playwright install chromium
 ```bash
 # Run the interactive scraper
 python main.py
+
+# Run with the breakage simulator (demo mode)
+python main.py --demo
+
+# Run the Streamlit web dashboard
+streamlit run dashboard.py
+
+# Run with Docker
+docker compose up --build
 ```
+
+### Breakage Simulator (Demo Mode)
+
+Add the `--demo` flag to intentionally scramble CSS selectors and watch the
+self-healing cascade in action:
+
+```bash
+python main.py --demo
+```
+
+This simulates a website redesign: CSS selectors fail, forcing the scraper to
+fall back through Regex, then Fuzzy Matching, then Gemini AI — all live.
 
 ### Example Session
 
@@ -452,13 +484,14 @@ Modern e-commerce sites use:
 - [x] Smart MRP vs selling price detection
 - [x] Price recovery from raw HTML
 - [x] Hinglish code comments for readability
-- [ ] LLM-powered fallback (Gemini Flash or Ollama)
-- [ ] Streamlit live dashboard
+- [x] LLM-powered fallback (Gemini Flash)
+- [x] Relevance scoring and smart filtering
+- [x] Streamlit live dashboard
+- [x] Breakage simulator (demo mode)
+- [x] Docker containerization
 - [ ] Visual diff tool (before and after redesign)
 - [ ] Multi-language support (Hindi and English)
 - [ ] Slack and Discord webhook alerts
-- [ ] Confidence scoring per product
-- [ ] Docker containerization
 - [ ] PyPI package release
 
 ---
@@ -475,17 +508,16 @@ Modern e-commerce sites use:
 | HTML Parsing | BeautifulSoup4 with lxml backend |
 | HTTP Requests | requests library with retry logic |
 | Browser Automation | Playwright (Chromium) |
+| LLM Fallback | Google Gemini (generativeai SDK) |
+| Dashboard | Streamlit + Plotly |
 | Database | SQLite3 (built-in) |
 | Scheduling | schedule library |
+| Containerization | Docker + Docker Compose |
 | Logging | Python logging module |
 
 ---
 
-
-
 ## License
-
-</div>
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
@@ -513,16 +545,3 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 **Star this repository if it helped you**
 
 </div>
-
-
-
-
-
-
-
-
-
-
-HEY Man
-
-Welcome Back to New New Video ---> RuST BaBA / PJY

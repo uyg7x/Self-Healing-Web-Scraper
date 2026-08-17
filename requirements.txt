@@ -4,3 +4,6 @@ playwright==1.40.0
 schedule==1.2.1
 lxml==4.9.3
 google-generativeai==0.8.3
+streamlit>=1.28.0
+plotly>=5.18.0
+pandas>=2.1.0

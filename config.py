@@ -54,6 +54,9 @@ SITES_CONFIG = {
     "books_toscrape": {
         "name": "Books to Scrape (Practice)",
         "url": "http://books.toscrape.com",
+        # BooksToScrape doesn't have a real search API, so we fall back to
+        # a catalogue page that always returns ~20 books.  The scraper's
+        # RelevanceScorer will filter/rank them against the user's query.
         "base_search_url": "http://books.toscrape.com/catalogue/page-1.html",
         "js_required": False,
         "currency": "GBP",

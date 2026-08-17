@@ -1,0 +1,13 @@
+version: "3.9"
+
+services:
+  scraper-dashboard:
+    build: .
+    container_name: self-healing-scraper
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+    restart: unless-stopped

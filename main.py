@@ -14,6 +14,7 @@ import sys
 import io
 import logging
 import csv
+import argparse
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import quote_plus
@@ -87,7 +88,8 @@ def ask_user_yes_no(prompt: str, default: str = "n") -> bool:
 
 
 def scrape_site(site_key, site_config, engine, healing, validator, db, alerts,
-                results_collector, search_date, search_time, search_term):
+                results_collector, search_date, search_time, search_term,
+                demo_mode=False):
     logger = logging.getLogger(__name__)
     site_name = site_config["name"]
     target_url = site_config["category_url"]
@@ -96,6 +98,16 @@ def scrape_site(site_key, site_config, engine, healing, validator, db, alerts,
     print(f"     URL: {target_url}")
 
     selectors = healing.get_prioritized_selectors(site_key, site_config["selectors"])
+
+    # --- DEMO MODE: scramble CSS selectors to force the fallback cascade ---
+    if demo_mode and site_config.get("selectors"):
+        print(f"     [DEMO] Scrambling CSS selectors to simulate a site redesign...")
+        original_selectors = selectors
+        scrambled = []
+        for sel in site_config["selectors"]:
+            scrambled.append({k: v + "___BROKEN___" for k, v in sel.items()})
+        selectors = scrambled
+        logger.info(f"DEMO MODE: selectors scrambled for {site_name}")
     html = engine.fetch_page(target_url, js_required=site_config["js_required"])
     if not html:
         logger.error(f"Failed to fetch {site_name} (Blocked/CAPTCHA)")
@@ -170,9 +182,12 @@ def scrape_site(site_key, site_config, engine, healing, validator, db, alerts,
     )
 
 
-def run_interactive_search():
+def run_interactive_search(demo_mode=False):
     print("\n" + "=" * 65)
     print("  SELF-HEALING E-COMMERCE PRICE COMPARATOR")
+    if demo_mode:
+        print("  [DEMO MODE] CSS selectors will be scrambled to showcase")
+        print("  the self-healing cascade (CSS -> Regex -> Fuzzy -> LLM).")
     print("=" * 65)
     print("  REALITY CHECK: Amazon, Flipkart, Ajio, Meesho, ShopClues,")
     print("  GlowRoad & Goodreads have heavy anti-bot systems. If they fail,")
@@ -212,6 +227,7 @@ def run_interactive_search():
         scrape_site(
             site_key, site_config_dynamic, engine, healing, validator, db, alerts,
             all_scraped_data, search_date, search_time, search_term,
+            demo_mode=demo_mode,
         )
 
     # --- EXPORT TO CSV ---
@@ -272,8 +288,19 @@ def run_interactive_search():
 
 
 def main():
+    parser = argparse.ArgumentParser(
+        description="Self-Healing E-Commerce Price Comparator",
+    )
+    parser.add_argument(
+        "--demo",
+        action="store_true",
+        help="Breakage simulator: scramble CSS selectors to demonstrate "
+             "the self-healing fallback cascade (CSS -> Regex -> Fuzzy -> LLM).",
+    )
+    args = parser.parse_args()
+
     setup_logging()
-    run_interactive_search()
+    run_interactive_search(demo_mode=args.demo)
 
 
 if __name__ == "__main__":
