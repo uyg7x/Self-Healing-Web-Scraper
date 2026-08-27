@@ -562,6 +562,10 @@ class ScraperEngine:
                 specs = self._find_nearby_specs(name_elem, selectors.get("specs"))
                 product["specs"] = specs if specs else "N/A"
                 
+                # Extract product image
+                image_url = self._extract_product_image(name_elem, base_url)
+                product["image_url"] = image_url if image_url else "N/A"
+                
                 products.append(product)
                     
         except Exception as e:
@@ -594,6 +598,30 @@ class ScraperEngine:
             pass
         return None
     
+    def _extract_product_image(self, name_elem, base_url: str) -> Optional[str]:
+        """Extract product image URL from element and its parents."""
+        try:
+            # Try data-src first (common lazy-load pattern)
+            for img in name_elem.find_all("img", recursive=True):
+                src = img.get("data-src") or img.get("src") or img.get("data-lazy") or img.get("data-original")
+                if src and src.startswith("data:"):
+                    continue  # Skip base64 inline images
+                if src:
+                    return urljoin(base_url, src)
+            
+            # Try parent container for product card images
+            container = name_elem.find_parent(["div", "li", "article", "a"])
+            if container:
+                for img in container.find_all("img", recursive=True):
+                    src = img.get("data-src") or img.get("src") or img.get("data-lazy") or img.get("data-original")
+                    if src and src.startswith("data:"):
+                        continue
+                    if src:
+                        return urljoin(base_url, src)
+        except Exception as e:
+            logger.debug(f"Image extraction error: {e}")
+        return None
+    
     def _extract_with_regex(self, html: str, base_url: str, patterns: Dict) -> List[Dict]:
         products = []
         try:
@@ -606,6 +634,7 @@ class ScraperEngine:
                     "name": names[i],
                     "price": prices[i] if i < len(prices) else "N/A",
                     "link": urljoin(base_url, links[i]) if i < len(links) else "N/A",
+                    "image_url": "N/A",
                     "specs": "N/A",
                 }
                 if len(product["name"]) >= 5:
@@ -685,6 +714,7 @@ class ScraperEngine:
                     "name": best_match,
                     "price": price_info['text'],
                     "link": link,
+                    "image_url": "N/A",
                     "specs": "N/A",
                     "healed": True  # Mark as self-healed
                 }

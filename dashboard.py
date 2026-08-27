@@ -84,6 +84,12 @@ def load_products() -> pd.DataFrame:
     df["price_value"] = pd.to_numeric(df["price_float"], errors="coerce")
     df["scrape_date"] = df["scrape_timestamp"].dt.date
 
+    # Normalize image URLs — convert "N/A" to None (handle missing column gracefully)
+    if "image_url" in df.columns:
+        df["image_url"] = df["image_url"].where(df["image_url"].str.lower() != "n/a", None)
+    else:
+        df["image_url"] = None
+
     # Classify products into categories based on product name keywords
     def classify_product(name):
         if name is None:
@@ -428,13 +434,21 @@ st.subheader("Extracted data")
 
 table = filtered.sort_values("scrape_timestamp", ascending=False).copy()
 table["Self-healed"] = table["self_healed"].map({1: "Yes", 0: "No"})
+# Build Image column safely — handle missing/None image_url
+if "image_url" in table.columns:
+    table["Image"] = table["image_url"].apply(
+        lambda url: f'![product]({url})' if pd.notna(url) and str(url).lower() != "n/a" else ""
+    )
+else:
+    table["Image"] = ""
 
 st.dataframe(
     table[[
-        "site_name", "product_name", "price_inr", "method_label",
+        "site_name", "Image", "product_name", "price_inr", "method_label",
         "Self-healed", "product_link", "scrape_timestamp",
     ]].rename(columns={
         "site_name": "Website",
+        "Image": "",
         "product_name": "Product",
         "price_inr": "Price",
         "method_label": "Method",
@@ -443,6 +457,11 @@ st.dataframe(
     }),
     column_config={
         "Link": st.column_config.LinkColumn("Link", display_text="Open"),
+        "": st.column_config.ImageColumn(
+            "Image",
+            help="Product image from website",
+            width=100,
+        ),
     },
     use_container_width=True,
     hide_index=True,

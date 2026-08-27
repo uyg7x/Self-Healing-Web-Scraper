@@ -29,6 +29,7 @@ class Database:
                 price_float REAL,
                 price_inr TEXT,
                 product_link TEXT,
+                image_url TEXT,
                 specs TEXT,
                 scrape_timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
                 scrape_method TEXT,
@@ -37,6 +38,16 @@ class Database:
             )
         """)
         self.conn.commit()
+
+        # ------------------------------------------------------------------
+        # Migration: add image_url column to pre-existing tables that lack it
+        # ------------------------------------------------------------------
+        cursor.execute("PRAGMA table_info(products)")
+        existing_cols = {row[1] for row in cursor.fetchall()}
+        if "image_url" not in existing_cols:
+            cursor.execute("ALTER TABLE products ADD COLUMN image_url TEXT")
+            self.conn.commit()
+            logger.info("Migrated: added image_url column to products table")
     
     def save_products(self, products: List[Dict], site_name: str, scrape_info: Dict):
         if not products: return
@@ -44,12 +55,12 @@ class Database:
         for product in products:
             try:
                 cursor.execute("""
-                    INSERT INTO products (site_name, product_name, price_text, price_float, price_inr, product_link, specs, scrape_method, selector_index, self_healed)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO products (site_name, product_name, price_text, price_float, price_inr, product_link, image_url, specs, scrape_method, selector_index, self_healed)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     site_name, product.get("name", ""), product.get("price", ""),
                     product.get("price_float"), product.get("price_inr"),
-                    product.get("link"), product.get("specs"),
+                    product.get("link"), product.get("image_url"), product.get("specs"),
                     scrape_info.get("method", "unknown"),
                     scrape_info.get("strategy_index", -1),
                     1 if product.get("healed") else 0,

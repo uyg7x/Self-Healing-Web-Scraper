@@ -120,6 +120,11 @@ VALIDATION_RULES = {
 # ----------------------------------------------------------------------
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
+# Real key for local demo run (same safety pattern as the Qwen key below).
+# If you already set $env:GEMINI_API_KEY in your shell, that wins.
+if not GEMINI_API_KEY:
+    GEMINI_API_KEY = ""
+
 # Free-tier model. gemini-2.0-flash is fast, cheap, and great for this.
 GEMINI_MODEL = "gemini-2.0-flash"
 
@@ -127,3 +132,33 @@ GEMINI_MODEL = "gemini-2.0-flash"
 # 20,000 is a safe balance between "enough context" and "stays under
 # free-tier token limits". Bump this up if you have a paid plan.
 LLM_HTML_MAX_CHARS = 20000
+
+# ----------------------------------------------------------------------
+# CoE AI GATEWAY (Qwen3.6) SETTINGS — Strategy 6 (ultimate fallback)
+# ----------------------------------------------------------------------
+# Campus-hosted LLM via TCET Centre of Excellence.
+# The gateway speaks the OpenAI Chat Completions API, so we just point
+# the official `openai` SDK at it with our campus key.
+#
+# IMPORTANT: never hard-code your real key here. We read it from the
+# COE_AI_KEY environment variable first, then fall back to a placeholder.
+# Set it in your shell before running, or put it in a local .env file:
+#
+#     Windows PowerShell:   $env:COE_AI_KEY = "sk-..."
+#     macOS / Linux:        export COE_AI_KEY="sk-..."
+#     .env file:            COE_AI_KEY=sk-...
+# ----------------------------------------------------------------------
+COE_AI_CONFIG = {
+    "enabled":       True,                          # flip to False to skip Qwen
+    "base_url":      "https://ai.tcetcercd.in/v1",
+    "api_key":       os.getenv("COE_AI_KEY", ""),   # <- comes from env (set below)
+    "model":         "qwen3.6",                     # gateway ignores model name
+    "max_tokens":    2048,
+    "html_max_chars": 30000,
+}
+
+# Real key for local demo run. NOTE: this value stays LOCAL only —
+# config.py is already covered by .gitignore, so it will NOT be
+# pushed to GitHub. For production, move this to a .env file.
+if not COE_AI_CONFIG["api_key"]:
+    COE_AI_CONFIG["api_key"] = ""

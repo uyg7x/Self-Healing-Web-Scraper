@@ -43,6 +43,9 @@ playwright/.local-browsers/
 *.pem
 *.key
 config.local.py
+# config.py holds API keys (Gemini + CoE/Qwen) for local demo runs.
+# Uncomment the next line before pushing to a public repo:
+# config.py
 
 # OS
 *.lnk

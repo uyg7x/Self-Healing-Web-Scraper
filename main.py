@@ -30,22 +30,24 @@ if sys.platform.startswith("win"):
     except (ValueError, AttributeError):
         pass
 
-from config import SITES_CONFIG, LOG_LEVEL, LOG_FILE, DATA_DIR, CURRENCY_TO_INR
+from config import SITES_CONFIG, LOG_LEVEL, LOG_FILE, DATA_DIR, CURRENCY_TO_INR, COE_AI_CONFIG
 from scraper_engine import ScraperEngine
 from self_healing import SelfHealingSystem
 from validators import DataValidator
 from database import Database
 from alerts import AlertSystem
+from qwen_fallback import QwenFallback
 
 # ----------------------------------------------------------------------
 # Display helpers — turn a strategy index/method into a friendly label
 # ----------------------------------------------------------------------
 STRATEGY_LABELS = {
-    "json_ld":       "JSON-LD (structured data)",
-    "css_selector":  "CSS selector",
-    "regex":         "Regex fallback",
-    "self_healing":  "Self-healing (fuzzy match)",
-    "llm":           "Gemini AI (LLM)",
+    "json_ld":           "JSON-LD (structured data)",
+    "css_selector":      "CSS selector",
+    "regex":             "Regex fallback",
+    "self_healing":      "Self-healing (fuzzy match)",
+    "llm":               "Gemini AI (LLM)",
+    "qwen_ai_fallback":  "Qwen AI (CoE Gateway)",
 }
 
 def format_source(website: str, method: str) -> str:
@@ -89,7 +91,7 @@ def ask_user_yes_no(prompt: str, default: str = "n") -> bool:
 
 def scrape_site(site_key, site_config, engine, healing, validator, db, alerts,
                 results_collector, search_date, search_time, search_term,
-                demo_mode=False):
+                demo_mode=False, qwen=None):
     logger = logging.getLogger(__name__)
     site_name = site_config["name"]
     target_url = site_config["category_url"]
@@ -113,7 +115,8 @@ def scrape_site(site_key, site_config, engine, healing, validator, db, alerts,
         logger.error(f"Failed to fetch {site_name} (Blocked/CAPTCHA)")
         return
 
-    # Try the 4 traditional strategies first (JSON-LD, CSS, regex, fuzzy).
+    # Try the 5 built-in strategies first
+    # (JSON-LD, CSS, regex, fuzzy self-heal, Gemini LLM).
     products, scrape_info = engine.extract_data(
         html, site_config["url"], selectors, site_config["regex_fallback"]
     )
@@ -123,7 +126,7 @@ def scrape_site(site_key, site_config, engine, healing, validator, db, alerts,
     # If everything failed, optionally ask the user if they want AI mode.
     if not products:
         logger.warning(f"No products found on {site_name} using traditional methods.")
-        print(f"     [WARN] No output found on {site_name} after 4 strategies.")
+        print(f"     [WARN] No output found on {site_name} after 5 strategies.")
 
         if ask_user_yes_no(
             f"     No output found. Use LLM (Google Gemini) mode for {site_name}?",
@@ -146,7 +149,35 @@ def scrape_site(site_key, site_config, engine, healing, validator, db, alerts,
                 print(f"     [INFO] Gemini LLM also returned nothing for {site_name}.")
         else:
             print(f"     Skipping LLM mode for {site_name}.")
+
+    # --------------------------------------------------------------
+    # Strategy 6: Qwen AI (CoE Gateway) — AUTOMATIC, no prompt.
+    # Fires only when all 5 previous strategies returned nothing AND
+    # the user either declined Gemini or Gemini also returned nothing.
+    # We deliberately do NOT ask the user twice — Qwen runs silently
+    # as the "I will not give up" last resort.
+    # --------------------------------------------------------------
+    if not products and qwen is not None and qwen.enabled:
+        domain = site_config["url"].replace("https://", "").replace("http://", "").split("/")[0]
+        print(f"     [INFO] Asking Qwen AI (CoE Gateway) to read {site_name}...")
+        logger.info("All previous strategies failed. Trying Qwen AI Fallback on %s...", site_name)
+        qwen_products = qwen.extract_products(html, search_term, target_site=domain)
+        if qwen_products:
+            products = qwen_products
+            used_method = "qwen_ai_fallback"
+            scrape_info = {"strategy_index": -5, "method": "qwen_ai_fallback"}
+            logger.info(
+                f"QWEN AI SUCCEEDED on {site_name}! Found {len(products)} product(s)."
+            )
+            print(f"     [OK] Qwen AI extracted {len(products)} product(s) (with images).")
+        else:
+            logger.warning(f"Qwen AI also returned nothing for {site_name}.")
+            print(f"     [INFO] Qwen AI also returned nothing for {site_name}.")
             return
+
+    if not products:
+        # Nothing worked for this site — log it and move on.
+        return
 
     valid_products = validator.filter_products(products, search_term)
     if not valid_products:
@@ -187,7 +218,7 @@ def run_interactive_search(demo_mode=False):
     print("  SELF-HEALING E-COMMERCE PRICE COMPARATOR")
     if demo_mode:
         print("  [DEMO MODE] CSS selectors will be scrambled to showcase")
-        print("  the self-healing cascade (CSS -> Regex -> Fuzzy -> LLM).")
+        print("  the self-healing cascade (CSS -> Regex -> Fuzzy -> LLM -> Qwen).")
     print("=" * 65)
     print("  REALITY CHECK: Amazon, Flipkart, Ajio, Meesho, ShopClues,")
     print("  GlowRoad & Goodreads have heavy anti-bot systems. If they fail,")
@@ -211,6 +242,12 @@ def run_interactive_search(demo_mode=False):
     validator = DataValidator()
     db = Database()
     alerts = AlertSystem()
+    qwen = QwenFallback()  # Strategy 6 — auto-disabled if key missing
+
+    if qwen.enabled:
+        print("  [Strategy 6] Qwen AI (CoE Gateway) is ARMED as final fallback.")
+    else:
+        print("  [Strategy 6] Qwen AI disabled (no COE_AI_KEY / not enabled in config).")
 
     now = datetime.now()
     search_date = now.strftime("%Y-%m-%d")
@@ -227,7 +264,7 @@ def run_interactive_search(demo_mode=False):
         scrape_site(
             site_key, site_config_dynamic, engine, healing, validator, db, alerts,
             all_scraped_data, search_date, search_time, search_term,
-            demo_mode=demo_mode,
+            demo_mode=demo_mode, qwen=qwen,
         )
 
     # --- EXPORT TO CSV ---
@@ -245,8 +282,9 @@ def run_interactive_search(demo_mode=False):
             'Website Name',
             'Product Name',
             'Price (INR)',
-            'Relevance Score',  # NEW: 0-100 score from the RelevanceScorer
+            'Relevance Score',     # 0-100 score from the RelevanceScorer
             'Specifications',
+            'Product Image URL',   # populated mainly by Qwen AI fallback
             'Product Link',
             'Date',
             'Time',
@@ -256,15 +294,16 @@ def run_interactive_search(demo_mode=False):
             writer.writeheader()
             for row in all_scraped_data:
                 writer.writerow({
-                    'Source':           row.get('source', row.get('website', '')),
-                    'Website Name':     row.get('website'),
-                    'Product Name':     row.get('name'),
-                    'Price (INR)':      row.get('price_inr'),
-                    'Relevance Score':  row.get('_relevance_score', 'N/A'),
-                    'Specifications':   row.get('specs'),
-                    'Product Link':     row.get('link'),
-                    'Date':             row.get('date'),
-                    'Time':             row.get('time'),
+                    'Source':             row.get('source', row.get('website', '')),
+                    'Website Name':       row.get('website'),
+                    'Product Name':       row.get('name'),
+                    'Price (INR)':        row.get('price_inr'),
+                    'Relevance Score':    row.get('_relevance_score', 'N/A'),
+                    'Specifications':     row.get('specs'),
+                    'Product Image URL':  row.get('image_url', '') or '',
+                    'Product Link':       row.get('link'),
+                    'Date':               row.get('date'),
+                    'Time':               row.get('time'),
                 })
 
         # Pretty summary by source so the user can see designation at a glance
