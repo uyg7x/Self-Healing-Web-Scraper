@@ -4,7 +4,7 @@
 
 ### A resilient, learning web scraper that automatically adapts to website redesigns
 
-When a site changes its HTML structure, the scraper tries a **five-strategy fallback cascade** and learns which ones work best — so you never lose data after a redesign.
+When a site changes its HTML structure, the scraper tries a **six-strategy fallback cascade** and learns which ones work best — so you never lose data after a redesign.
 
 <br>
 
@@ -52,15 +52,15 @@ It ships with:
 
 | Capability | Description |
 |---|---|
-| **5-Strategy Cascade** | JSON-LD → CSS → Regex → Fuzzy self-heal → LLM (Gemini) |
+| **6-Strategy Cascade** | JSON-LD → CSS → Regex → Fuzzy self-heal → LLM (Gemini) → Qwen AI |
 | **Self-Learning Memory** | Promotes successful selectors & strategies to priority for next run |
 | **JSON-LD Auto-Detection** | Extracts Schema.org structured data — survives 90% of redesigns |
-| **Dual Fetching** | `requests` for speed, `Playwright` Chromium for JS-heavy sites |
+| **Anti-Ban Engine v3.1** | Async fetching with TLS spoofing (JA3/JA4), Playwright Stealth & Residential Proxy rotation |
 | **Smart Price Recovery** | Distinguishes selling price from MRP, picks the *real* deal price |
 | **Relevance Scoring** | Multi-factor 0-100 score (exact, brand, category, fuzzy, length, accessory penalty) |
 | **Garbage Filtering** | Rejects menu items, filters, buttons, and short junk text |
 | **SQLite Database** | Full history with strategy used and self-healed flag |
-| **LLM Fallback (Gemini)** | Last-resort semantic extraction that survives total redesigns |
+| **Dual-Layer AI Fallback** | Google Gemini & Qwen AI for last-resort semantic extraction |
 | **Breakage Simulator** | `--demo` mode intentionally breaks CSS to showcase the cascade |
 | **Streamlit Dashboard** | Live charts, KPIs, and per-site / per-method breakdowns |
 | **Docker Ready** | One-command `docker compose up` brings the dashboard online |
