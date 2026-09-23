@@ -323,155 +323,91 @@ k6.metric("Self-heal rate", f"{heal_rate:.1f}%")
 st.markdown("---")
 
 # ------------------------------------------------------------------
-# Row 1: price per site + method distribution
+# SECTION 1: LIVE EXACT PRICES (No Averages)
 # ------------------------------------------------------------------
-c1, c2 = st.columns(2)
+st.subheader("Live Exact Prices (Individual Products)")
+st.caption("Every single product extracted with its exact real-time price. No averages.")
 
-with c1:
-    st.subheader("Average price by website")
-    agg = (
-        filtered.groupby("site_name")["price_value"]
-        .agg(mean="mean", low="min", high="max", count="count")
-        .reset_index()
-        .dropna(subset=["mean"])
-    )
-    if agg.empty:
-        st.write("No price data available.")
-    else:
-        fig = px.bar(
-            agg, x="site_name", y="mean", color="site_name",
-            labels={"site_name": "Website", "mean": "Average price (INR)"},
-            hover_data={"low": True, "high": True, "count": True},
-        )
-        fig.update_layout(showlegend=False, height=380)
-        st.plotly_chart(fig, use_container_width=True)
-
-with c2:
-    st.subheader("Extraction method mix")
-    m = filtered["method_label"].value_counts().reset_index()
-    m.columns = ["method", "count"]
-    fig = px.pie(
-        m, names="method", values="count", hole=0.55,
-        color="method", color_discrete_map=METHOD_COLORS,
-    )
-    fig.update_layout(height=380, margin=dict(t=20, b=20, l=20, r=20))
-    st.plotly_chart(fig, use_container_width=True)
-
-# ------------------------------------------------------------------
-# Row 2: activity timeline + self-heal events per site
-# ------------------------------------------------------------------
-c3, c4 = st.columns(2)
-
-with c3:
-    st.subheader("Scraping activity over time")
-    t = filtered.groupby("scrape_date").size().reset_index(name="products")
-    fig = px.line(t, x="scrape_date", y="products", markers=True,
-                  labels={"scrape_date": "Date", "products": "Products extracted"})
-    fig.update_layout(height=360)
-    st.plotly_chart(fig, use_container_width=True)
-
-with c4:
-    st.subheader("Standard vs self-healed extractions")
-    filtered = filtered.copy()
-    filtered["status"] = filtered["self_healed"].map({1: "Self-healed", 0: "Standard"})
-    h = filtered.groupby(["site_name", "status"]).size().reset_index(name="count")
-    fig = px.bar(
-        h, x="site_name", y="count", color="status", barmode="stack",
-        color_discrete_map={"Self-healed": "#ef6c00", "Standard": "#1565c0"},
-        labels={"site_name": "Website", "count": "Extractions"},
-    )
-    fig.update_layout(height=360)
-    st.plotly_chart(fig, use_container_width=True)
-
-# ------------------------------------------------------------------
-# Row 3: cross-site price spread (best savings opportunities)
-# ------------------------------------------------------------------
-st.subheader("Cross-site price spread (same product, different websites)")
-g = (
-    filtered.groupby("product_name")
-    .agg(min_p=("price_value", "min"), max_p=("price_value", "max"),
-         sites=("site_name", "nunique"))
-    .reset_index()
-)
-g = g[(g["sites"] > 1) & g["min_p"].notna()]
-if g.empty:
-    st.write("No product was found on more than one website in this selection.")
-else:
-    g["spread"] = g["max_p"] - g["min_p"]
-    g["savings_pct"] = (g["spread"] / g["min_p"]) * 100
-    g = g.sort_values("spread", ascending=False).head(10)
-    g["Cheapest"] = g["min_p"].map(inr)
-    g["Costliest"] = g["max_p"].map(inr)
-    g["Savings"] = g["savings_pct"].map(lambda v: f"{v:.1f}%")
-    st.dataframe(
-        g[["product_name", "sites", "Cheapest", "Costliest", "Savings"]],
-        use_container_width=True, hide_index=True, height=300,
-    )
-
-# ------------------------------------------------------------------
-# Row 4: selector health (learning memory)
-# ------------------------------------------------------------------
-st.subheader("Selector health (learned strategy performance)")
-history = load_history()
-if not history:
-    st.write("No learning history yet. Run a few scrapes to build it.")
-else:
-    rows = []
-    for site, info in history.items():
-        for key, cnt in (info.get("success_count") or {}).items():
-            rows.append({"Site key": site, "Strategy record": key, "Successes": cnt})
-        rows.append({
-            "Site key": site,
-            "Strategy record": f"last success: {info.get('last_success', 'never')}",
-            "Successes": "",
-        })
-    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True, height=260)
-
-# ------------------------------------------------------------------
-# Row 5: raw data table + export
-# ------------------------------------------------------------------
-st.subheader("Extracted data")
-
-table = filtered.sort_values("scrape_timestamp", ascending=False).copy()
-table["Self-healed"] = table["self_healed"].map({1: "Yes", 0: "No"})
-# Build Image column safely — handle missing/None image_url
-if "image_url" in table.columns:
-    table["Image"] = table["image_url"].apply(
-        lambda url: f'![product]({url})' if pd.notna(url) and str(url).lower() != "n/a" else ""
-    )
-else:
-    table["Image"] = ""
+# Sort by most recent first to act like a live feed
+live_feed = filtered.sort_values("scrape_timestamp", ascending=False).copy()
 
 st.dataframe(
-    table[[
-        "site_name", "Image", "product_name", "price_inr", "method_label",
-        "Self-healed", "product_link", "scrape_timestamp",
+    live_feed[[
+        "scrape_timestamp", "site_name", "product_name", "price_inr", "method_label"
     ]].rename(columns={
+        "scrape_timestamp": "Checked At",
         "site_name": "Website",
-        "Image": "",
-        "product_name": "Product",
-        "price_inr": "Price",
-        "method_label": "Method",
-        "product_link": "Link",
-        "scrape_timestamp": "Scraped at",
+        "product_name": "Product Name",
+        "price_inr": "Exact Price",
+        "method_label": "Extracted Via",
     }),
-    column_config={
-        "Link": st.column_config.LinkColumn("Link", display_text="Open"),
-        "": st.column_config.ImageColumn(
-            "Image",
-            help="Product image from website",
-            width=100,
-        ),
-    },
     use_container_width=True,
     hide_index=True,
-    height=420,
+    height=400,
 )
+
+# ------------------------------------------------------------------
+# SECTION 2: REAL-TIME PRICE HISTORY MONITOR
+# ------------------------------------------------------------------
+st.markdown("---")
+st.subheader("Real-Time Price History Monitor")
+st.caption("Track how the exact price of a specific product changes over time across different websites.")
+
+# Get unique products for the dropdown
+unique_products = sorted(filtered["product_name"].dropna().unique().tolist())
+
+if unique_products:
+    selected_product = st.selectbox("Select a product to monitor:", unique_products)
+    
+    # Filter data for the selected product
+    product_history = filtered[filtered["product_name"] == selected_product].copy()
+    product_history = product_history.sort_values("scrape_timestamp")
+    
+    if not product_history.empty:
+        # Create a line chart showing price over time for each website
+        fig_hist = px.line(
+            product_history, 
+            x="scrape_timestamp", 
+            y="price_value", 
+            color="site_name",
+            markers=True,
+            labels={
+                "scrape_timestamp": "Date & Time",
+                "price_value": "Exact Price (INR)",
+                "site_name": "Website"
+            },
+            title=f"Price Trend for: {selected_product}"
+        )
+        fig_hist.update_layout(height=400)
+        st.plotly_chart(fig_hist, use_container_width=True)
+        
+        # Show a detailed table of the history for this product
+        st.dataframe(
+            product_history[["scrape_timestamp", "site_name", "price_inr", "method_label"]].rename(columns={
+                "scrape_timestamp": "Checked At",
+                "site_name": "Website",
+                "price_inr": "Exact Price",
+                "method_label": "Extracted Via"
+            }),
+            use_container_width=True,
+            hide_index=True,
+            height=250
+        )
+    else:
+        st.info("No history data available for this product yet.")
+else:
+    st.info("No products available to monitor yet. Run the scraper first.")
+
+# ------------------------------------------------------------------
+# SECTION 3: RAW DATA EXPORT
+# ------------------------------------------------------------------
+st.markdown("---")
+st.subheader("Export Data")
 
 csv_bytes = filtered.to_csv(index=False).encode("utf-8")
 st.download_button(
-    "Download filtered data as CSV",
+    "Download Filtered Data as CSV",
     data=csv_bytes,
-    file_name="scraper_export.csv",
+    file_name="scraper_exact_prices.csv",
     mime="text/csv",
 )

@@ -3,22 +3,32 @@ SCRAPER ENGINE
 With TRUE Self-Healing: Fuzzy matching when all selectors fail
 """
 
+import asyncio
 import random
 import time
 import re
 import json
 import logging
 from typing import Optional, Dict, List, Tuple
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 from difflib import SequenceMatcher
+from datetime import datetime, timedelta
 
 import requests
 from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
+import playwright_stealth
+from antiban_engine import AntiBanEngine
+
+try:
+    import curl_cffi.requests as cf_requests
+    CURL_CFFI_AVAILABLE = True
+except ImportError:
+    CURL_CFFI_AVAILABLE = False
 
 from config import (
     USER_AGENTS, MAX_RETRIES, RETRY_DELAY, REQUEST_TIMEOUT,
-    DELAY_BETWEEN_REQUESTS, PROXY_CONFIG
+    DELAY_BETWEEN_REQUESTS, PROXY_CONFIG, PROXY_LIST
 )
 # 5th and final fallback: ask Google Gemini to "read" the page for us.
 # We only import it here (not in config) so the rest of the engine stays
@@ -31,33 +41,13 @@ class ScraperEngine:
     def __init__(self):
         # Use a modern, real browser User-Agent (Chrome 120 for Robu.in compatibility)
         self.user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        self.session = requests.Session()
-        # Inject stealth headers immediately
-        self.session.headers.update(self._get_stealth_headers())
-
-        self.proxy = None
-        if PROXY_CONFIG.get("enabled") and PROXY_CONFIG.get("proxies"):
-            self.proxy = random.choice(PROXY_CONFIG["proxies"])
-            self.session.proxies = {"http": self.proxy, "https": self.proxy}
-
+        
+        # Anti-Ban Engine integration for high-evasion fetching
+        self.antiban = AntiBanEngine(proxy_list=PROXY_LIST)
+        
         # Lazily build the LLM healer. It is only USED if every other
         # strategy fails, so it doesn't slow down the happy path.
         self.llm_healer = LLMHealer()
-
-    def _get_stealth_headers(self):
-        """Returns headers that mimic a real human browser to bypass 403 blocks."""
-        return {
-            "User-Agent": self.user_agent,
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-            "Accept-Language": "en-US,en;q=0.5",
-            "Accept-Encoding": "gzip, deflate, br",
-            "Connection": "keep-alive",
-            "Upgrade-Insecure-Requests": "1",
-            "Sec-Fetch-Dest": "document",
-            "Sec-Fetch-Mode": "navigate",
-            "Sec-Fetch-Site": "none",
-            "Sec-Fetch-User": "?1",
-        }
 
     @staticmethod
     def _looks_binary(html: str) -> bool:
@@ -76,77 +66,69 @@ class ScraperEngine:
         # Only reject if LESS than 60% printable (was too strict before)
         return ratio < 0.6
 
-    def fetch_page(self, url: str, js_required: bool = False) -> Optional[str]:
+    def _get_stealth_headers(self) -> Dict[str, str]:
+        """
+        Generates a realistic set of HTTP headers to mimic a real browser.
+        """
+        return {
+            "User-Agent": self.user_agent,
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Accept-Encoding": "gzip, deflate, br",
+            "DNT": "1",
+            "Connection": "keep-alive",
+            "Upgrade-Insecure-Requests": "1",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "none",
+            "Sec-Fetch-User": "?1",
+        }
+
+    async def fetch_page(self, url: str, js_required: bool = False) -> Optional[str]:
+        """
+        Refactored to use the asynchronous AntiBanEngine.
+        Hooks into the AntiBanEngine to handle TLS spoofing, 
+        browser fingerprints, and proxy rotation.
+        """
         delay = random.uniform(*DELAY_BETWEEN_REQUESTS)
-        time.sleep(delay)
+        await asyncio.sleep(delay)
 
-        if js_required:
-            return self._fetch_with_playwright(url)
-        else:
-            return self._fetch_with_requests(url)
+        # use_browser=True triggers Playwright, False uses curl-cffi TLS client
+        result = await self.antiban.fetch(url, use_browser=js_required)
+        
+        if result and result.get("success"):
+            html_text = result.get("html")
+            
+            # Check if response looks like binary garbage (bad decode)
+            if self._looks_binary(html_text):
+                logger.warning(f"Response looks like binary data from AntiBanEngine for {url}")
+                return None
 
-    def _fetch_with_requests(self, url: str) -> Optional[str]:
-        for attempt in range(MAX_RETRIES):
-            try:
-                logger.info(f"Fetching {url} (attempt {attempt + 1})")
-                # Pass headers explicitly to ensure they're sent with each request
-                response = self.session.get(url, headers=self._get_stealth_headers(), timeout=REQUEST_TIMEOUT)
-                response.raise_for_status()
-
-                # CRITICAL FIX: requests defaults to ISO-8859-1 which breaks UTF-8 sites like BooksToScrape
-                if not response.encoding or response.encoding.lower() == "iso-8859-1":
-                    response.encoding = response.apparent_encoding
-
-                html_text = response.text
+            content = html_text.lower()
+            if any(block in content for block in ["captcha", "robot check", "403 forbidden", "access denied"]):
+                logger.warning(f"Bot detection triggered despite AntiBanEngine at {url}")
+                # The AntiBanEngine already handles retries and proxy rotation internally,
+                # but we return None here to signal the strategy cascade to move on or retry.
+                return None
                 
-                # Check if response looks like binary garbage (bad decode)
-                if self._looks_binary(html_text):
-                    logger.warning(f"Response looks like binary data, retrying {url}")
-                    if attempt < MAX_RETRIES - 1:
-                        time.sleep(RETRY_DELAY * (attempt + 1))
-                        continue
-                    return None
-
-                content = html_text.lower()
-                if any(block in content for block in ["captcha", "robot check", "403 forbidden", "access denied"]):
-                    logger.warning(f"Possible bot detection at {url}")
-                    if attempt < MAX_RETRIES - 1:
-                        time.sleep(RETRY_DELAY * (attempt + 1))
-                        continue
-                return html_text
-            except requests.RequestException as e:
-                logger.error(f"Request failed (attempt {attempt + 1}): {e}")
-                if attempt < MAX_RETRIES - 1:
-                    time.sleep(RETRY_DELAY * (attempt + 1))
+            return html_text
+            
+        logger.error(f"AntiBanEngine failed to fetch {url}: {result.get('error') if result else 'Unknown error'}")
         return None
+
+    @staticmethod
+    def _looks_binary(html: str) -> bool:
+        if not html:
+            return False
+        try:
+            # Check for null bytes or high ratio of non-printable characters
+            # A common sign of compressed or binary data masquerading as text
+            non_printable = sum(1 for c in html[:1000] if ord(c) < 32 and c not in "\n\r\t")
+            return non_printable > 10
+        except Exception:
+            return False
     
-    def _fetch_with_playwright(self, url: str) -> Optional[str]:
-        for attempt in range(MAX_RETRIES):
-            try:
-                logger.info(f"Fetching {url} with Playwright (attempt {attempt + 1})")
-                with sync_playwright() as p:
-                    browser = p.chromium.launch(headless=True, args=["--disable-blink-features=AutomationControlled"])
-                    context = browser.new_context(user_agent=self.user_agent)
-                    context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined});")
-                    page = context.new_page()
-                    page.goto(url, timeout=REQUEST_TIMEOUT * 1000, wait_until="networkidle")
-                    page.wait_for_timeout(3000)
-                    html = page.content()
-                    browser.close()
-                    
-                    # Check if response looks like binary garbage
-                    if self._looks_binary(html):
-                        logger.warning(f"Playwright response looks like binary data, retrying {url}")
-                        if attempt < MAX_RETRIES - 1:
-                            time.sleep(RETRY_DELAY * (attempt + 1))
-                            continue
-                        return None
-                    
-                    return html
-            except Exception as e:
-                logger.error(f"Playwright error: {e}")
-                if attempt < MAX_RETRIES - 1:
-                    time.sleep(RETRY_DELAY * (attempt + 1))
+    def extract_data(self, html: str, base_url: str, selectors: List[Dict], regex_fallback: Dict) -> Tuple[List[Dict], Dict]:
         return None
     
     def extract_data(self, html: str, base_url: str, selectors: List[Dict], regex_fallback: Dict) -> Tuple[List[Dict], Dict]:
@@ -291,16 +273,19 @@ class ScraperEngine:
                     if pos > 0:
                         product_pos = pos
 
-            # If no link found, assign prices sequentially
+            # If no link found, assign prices sequentially by document order.
+            # products are extracted in HTML order; enumerate instead of
+            # using products.index(product) (which does dict equality and can
+            # mismatch on cloned/equal dicts).
             if product_pos < 0:
                 try:
-                    idx = products.index(product)
-                    if idx < len(all_prices):
+                    seq_idx = self._product_sequence_index(product, products)
+                    if seq_idx < len(all_prices):
                         # Prefer selling prices over MRP
-                        if idx < len(selling_prices):
-                            loc = selling_prices[idx]
+                        if seq_idx < len(selling_prices):
+                            loc = selling_prices[seq_idx]
                         else:
-                            loc = all_prices[idx]
+                            loc = all_prices[seq_idx]
                         product['price'] = f"{loc['symbol']}{loc['price']}"
                         try:
                             product['price_float'] = float(loc['price'])
@@ -623,22 +608,71 @@ class ScraperEngine:
         return None
     
     def _extract_with_regex(self, html: str, base_url: str, patterns: Dict) -> List[Dict]:
+        """Extract products using regex, pairing each name with the price
+        and link CLOSEST to it in the HTML - not by global index.
+        """
         products = []
         try:
-            names = re.findall(patterns["product_name"], html) if patterns.get("product_name") else []
-            prices = re.findall(patterns["price"], html) if patterns.get("price") else []
-            links = re.findall(patterns.get("link", r'href="([^"]+)"'), html) if patterns.get("link") else []
-            
-            for i in range(min(len(names), 20)):
-                product = {
-                    "name": names[i],
-                    "price": prices[i] if i < len(prices) else "N/A",
-                    "link": urljoin(base_url, links[i]) if i < len(links) else "N/A",
+            name_pattern = patterns.get("product_name")
+            if not name_pattern:
+                return []
+
+            # Find every name match WITH its position in the HTML
+            name_matches = list(re.finditer(name_pattern, html))[:20]
+            if not name_matches:
+                return []
+
+            price_pat = patterns.get("price")
+
+            for nm in name_matches:
+                # Name may be in a capturing group or the whole match
+                name = nm.group(1) if nm.groups() else nm.group()
+                if len(name) < 5:
+                    continue
+
+                # Window around the NAME (not the whole page)
+                win_start = max(0, nm.start() - 600)
+                win_end = min(len(html), nm.end() + 200)
+                window = html[win_start:win_end]
+                name_mid = nm.start() - win_start  # name position inside window
+
+                # --- nearest price in window ---
+                price = "N/A"
+                if price_pat:
+                    best_pm = None
+                    best_pd = float("inf")
+                    for pm in re.finditer(price_pat, window):
+                        pc = (pm.start() + pm.end()) / 2
+                        d = abs(pc - name_mid)
+                        if d < best_pd:
+                            best_pd = d
+                            best_pm = pm
+                    if best_pm:
+                        price = best_pm.group(1) if best_pm.groups() else best_pm.group()
+
+                # --- nearest product-looking link in window ---
+                link = "N/A"
+                href_matches = list(re.finditer(r'href="([^"]+)"', window))
+                if href_matches:
+                    best_lm = None
+                    best_ld = float("inf")
+                    for hm in href_matches:
+                        url = hm.group(1)
+                        url_pos = hm.start() + len('href="')
+                        d = abs(url_pos - name_mid)
+                        if d < best_ld:
+                            best_ld = d
+                            best_lm = url
+                    if best_lm:
+                        link = urljoin(base_url, best_lm)
+
+                products.append({
+                    "name": name,
+                    "price": price,
+                    "link": link,
                     "image_url": "N/A",
                     "specs": "N/A",
-                }
-                if len(product["name"]) >= 5:
-                    products.append(product)
+                })
         except Exception as e:
             logger.error(f"Regex error: {e}")
         return products
@@ -708,7 +742,11 @@ class ScraperEngine:
             # If we found a good match
             if best_match and best_score > 50:
                 # Try to find a link near this product
-                link = self._find_link_near_price(html, price_info['start'], base_url)
+                # Pass the name position as anchor so the link finder
+                # looks near the product name, not just the price.
+                name_pos = price_info['start'] - 300  # name usually before price
+                link = self._find_link_near_price(html, price_info['start'],
+                                                  base_url, name_position=name_pos)
                 
                 product = {
                     "name": best_match,
@@ -764,31 +802,63 @@ class ScraperEngine:
         # Good signs: contains numbers (model numbers, specs)
         if re.search(r'\d', text):
             score += 10
-        
-        return max(0, score)
-    
-    def _find_link_near_price(self, html: str, price_position: int, base_url: str) -> str:
-        """
-        Find the nearest link to a price position
-        """
-        # Search in a window around the price
-        search_start = max(0, price_position - 1000)
-        search_end = min(len(html), price_position + 500)
-        window = html[search_start:search_end]
-        
-        # Find all href attributes
-        links = re.findall(r'href="([^"]+)"', window)
-        
-        for link in links:
-            # Prefer links that look like product pages
-            if any(keyword in link.lower() for keyword in ['/p/', '/product/', '/dp/', '/item/']):
-                return urljoin(base_url, link)
-        
-        # Return first link if no product link found
-        if links:
-            return urljoin(base_url, links[0])
 
-        return "N/A"
+        return max(0, score)
+
+    def _product_sequence_index(self, product: Dict, products: List[Dict]) -> int:
+        """Return the positional index of `product` in `products`.
+
+        We can't use list.index() safely here because two distinct products
+        can carry identical dicts (e.g. same name+price from regex). Counting
+        from the start gives the right position for the sequential price fallback.
+        """
+        for i, p in enumerate(products):
+            if (p.get('name'), p.get('price'), p.get('link')) == (
+                    product.get('name'), product.get('price'), product.get('link')):
+                return i
+        return -1
+
+    def _find_link_near_price(self, html: str, price_position: int,
+                                base_url: str, name_position: int = None) -> str:
+        """Find the nearest product-looking link near a price/name.
+
+        Old version always returned the first href in a window, which is
+        usually a nav/ad link. This version:
+          - searches a window; prefers links whose URL path hints at a
+            product page (/dp/, /product/, /p/, /item/, /buy/, /offer/,
+            /deals/, /shop/);
+          - falls back to the nearest href by position.
+        """
+        anchor = name_position if name_position is not None else price_position
+        search_start = max(0, anchor - 800)
+        search_end = min(len(html), anchor + 800)
+        window = html[search_start:search_end]
+
+        href_matches = list(re.finditer(r'href="([^"]+)"', window))
+        if not href_matches:
+            return "N/A"
+
+        product_path_hints = ('/dp/', '/product/', '/p/', '/item/', '/buy/',
+                              '/offer/', '/deals/', '/shop/')
+        best_product = None
+        best_any = None
+        best_any_dist = float('inf')
+
+        for hm in href_matches:
+            url = hm.group(1)
+            url_pos = hm.start() + len('href="')
+            dist = abs(url_pos - anchor)
+            if dist < best_any_dist:
+                best_any_dist = dist
+                best_any = url
+            if any(hint in url.lower() for hint in product_path_hints):
+                if best_product is None or dist < best_product[0]:
+                    best_product = (dist, url)
+
+        if best_product:
+            return urljoin(base_url, best_product[1])
+        # best_any is already the closest href by position
+        return urljoin(base_url, best_any) if best_any else "N/A"
 
     def extract_with_llm(self, html: str, base_url: str, search_hint: str = "") -> List[Dict]:
         """
@@ -840,3 +910,17 @@ class ScraperEngine:
         except Exception:
             pass
         return "products"
+
+    def get_session_headers(self, domain: str = None) -> Dict[str, str]:
+        """
+        Get headers for session reuse, optionally domain-specific.
+        This helps maintain session consistency across requests to the same domain.
+        """
+        base_headers = self._get_stealth_headers()
+        
+        # Add domain-specific headers if domain is provided
+        if domain:
+            base_headers["Referer"] = f"https://{domain}/"
+            base_headers["Origin"] = f"https://{domain}"
+        
+        return base_headers

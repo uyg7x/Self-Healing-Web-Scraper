@@ -15,6 +15,8 @@ import io
 import logging
 import csv
 import argparse
+import asyncio
+import warnings
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import quote_plus
@@ -29,6 +31,14 @@ if sys.platform.startswith("win"):
         sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
     except (ValueError, AttributeError):
         pass
+
+warnings.filterwarnings("ignore", category=ResourceWarning, message="unclosed transport")
+
+# Hide "Exception ignored in __del__" errors (Windows/Playwright cleanup glitch)
+def ignore_unraisable_exceptions(exc):
+    pass  # Do nothing, just ignore it silently
+
+sys.unraisablehook = ignore_unraisable_exceptions
 
 from config import SITES_CONFIG, LOG_LEVEL, LOG_FILE, DATA_DIR, CURRENCY_TO_INR, COE_AI_CONFIG
 from scraper_engine import ScraperEngine
@@ -89,7 +99,7 @@ def ask_user_yes_no(prompt: str, default: str = "n") -> bool:
     return ans in ("y", "yes")
 
 
-def scrape_site(site_key, site_config, engine, healing, validator, db, alerts,
+async def scrape_site(site_key, site_config, engine, healing, validator, db, alerts,
                 results_collector, search_date, search_time, search_term,
                 demo_mode=False, qwen=None):
     logger = logging.getLogger(__name__)
@@ -110,7 +120,7 @@ def scrape_site(site_key, site_config, engine, healing, validator, db, alerts,
             scrambled.append({k: v + "___BROKEN___" for k, v in sel.items()})
         selectors = scrambled
         logger.info(f"DEMO MODE: selectors scrambled for {site_name}")
-    html = engine.fetch_page(target_url, js_required=site_config["js_required"])
+    html = await engine.fetch_page(target_url, js_required=site_config["js_required"])
     if not html:
         logger.error(f"Failed to fetch {site_name} (Blocked/CAPTCHA)")
         return
@@ -161,7 +171,7 @@ def scrape_site(site_key, site_config, engine, healing, validator, db, alerts,
         domain = site_config["url"].replace("https://", "").replace("http://", "").split("/")[0]
         print(f"     [INFO] Asking Qwen AI (CoE Gateway) to read {site_name}...")
         logger.info("All previous strategies failed. Trying Qwen AI Fallback on %s...", site_name)
-        qwen_products = qwen.extract_products(html, search_term, target_site=domain)
+        qwen_products = qwen.extract_products(html, search_term, target_site=domain, base_domain=domain)
         if qwen_products:
             products = qwen_products
             used_method = "qwen_ai_fallback"
@@ -205,6 +215,49 @@ def scrape_site(site_key, site_config, engine, healing, validator, db, alerts,
 
     results_collector.extend(valid_products)
 
+    # --- REAL-TIME PRICE MONITORING & ALERTS ---
+    drops_found = 0
+    price_changes = 0
+    
+    for p in valid_products:
+        if not p.get('price_float'):
+            continue
+            
+        # Check the database for the PREVIOUS price of this exact product on this site
+        cursor = db.conn.cursor()
+        cursor.execute("""
+            SELECT price_float FROM products 
+            WHERE product_name = ? AND site_name = ? AND price_float > 0
+            ORDER BY scrape_timestamp DESC LIMIT 1 OFFSET 1
+        """, (p['name'], site_name))
+        
+        prev_row = cursor.fetchone()
+        
+        if prev_row and prev_row[0] is not None:
+            prev_price = prev_row[0]
+            curr_price = p['price_float']
+            
+            # Detect Price Drop
+            if curr_price < prev_price:
+                drops_found += 1
+                price_changes += 1
+                print(f"     PRICE DROP: {p['name']} on {site_name} dropped from {prev_price:,.0f} to {curr_price:,.0f}!")
+                
+                # Trigger email alert if configured
+                # alerts.send_price_drop_alert(p['name'], prev_price, curr_price, site_name)
+                
+            # Detect Price Increase
+            elif curr_price > prev_price:
+                price_changes += 1
+                print(f"     PRICE INCREASE: {p['name']} on {site_name} increased from {prev_price:,.0f} to {curr_price:,.0f}.")
+
+    if drops_found > 0:
+        print(f"  SUCCESS: Detected {drops_found} price drop(s) during this run!")
+    elif price_changes > 0:
+        print(f"  Monitored {price_changes} price change(s) across all products.")
+    else:
+        print(f"  Prices are stable. No changes detected since last run.")
+
     db.save_products(valid_products, site_key, scrape_info)
     healing.record_success(
         site_key,
@@ -213,7 +266,7 @@ def scrape_site(site_key, site_config, engine, healing, validator, db, alerts,
     )
 
 
-def run_interactive_search(demo_mode=False):
+async def run_interactive_search(demo_mode=False):
     print("\n" + "=" * 65)
     print("  SELF-HEALING E-COMMERCE PRICE COMPARATOR")
     if demo_mode:
@@ -261,7 +314,7 @@ def run_interactive_search(demo_mode=False):
             continue
         site_config_dynamic = site_config.copy()
         site_config_dynamic["category_url"] = base_url.replace("{query}", encoded_query)
-        scrape_site(
+        await scrape_site(
             site_key, site_config_dynamic, engine, healing, validator, db, alerts,
             all_scraped_data, search_date, search_time, search_term,
             demo_mode=demo_mode, qwen=qwen,
@@ -334,12 +387,16 @@ def main():
         "--demo",
         action="store_true",
         help="Breakage simulator: scramble CSS selectors to demonstrate "
-             "the self-healing fallback cascade (CSS -> Regex -> Fuzzy -> LLM).",
+             " the self-healing fallback cascade (CSS -> Regex -> Fuzzy -> LLM).",
     )
     args = parser.parse_args()
 
     setup_logging()
-    run_interactive_search(demo_mode=args.demo)
+    asyncio.run(run_interactive_search(demo_mode=args.demo))
+    
+    # Give Windows/Playwright 1 full second to close background pipes cleanly
+    import time
+    time.sleep(1)
 
 
 if __name__ == "__main__":

@@ -42,37 +42,42 @@ class QwenFallback:
 
     # The exact prompt sent to Qwen. Forces a JSON-only reply so parsing
     # is safe even if the model adds stray text.
-    _PROMPT_TEMPLATE = """You are an expert web-scraping assistant. Extract ALL products from the HTML below.
+    _PROMPT_TEMPLATE = """You are an expert e-commerce data extraction engine. Your task is to analyze the provided raw HTML and extract precise product information.
 
 Search Term: "{search_term}"
 Target Site: {target_site}
+Base Domain: {base_domain}
 
-INSTRUCTIONS:
-1. Find every product that matches the search term.
-2. For EACH product, return EXACTLY these fields:
-   - "name":       Product title/name (string)
-   - "price":      Price as shown (e.g. "₹79,900" or "Rs. 1,299") (string)
-   - "image_url":  Full URL of the product image from <img> tags / src (string)
-   - "link":       Product page URL — absolute if possible (string, or "N/A")
-   - "specs":      Key specifications if visible (string, or "N/A")
+CRITICAL EXTRACTION RULES:
+1. EXACT SELLING PRICE: You MUST extract the actual selling price the customer pays.
+   - IGNORE any prices marked as "MRP", "Original Price", or prices inside <strike>, <del>, or <s> tags.
+   - IGNORE EMI prices (e.g., "₹3,000/month").
+   - If multiple prices exist, pick the lowest valid price that represents the current selling price.
+2. IMAGE URL: Find the primary product image.
+   - Look in <img> tags (check 'src', 'data-src', 'data-lazy-src' attributes).
+   - Look in JSON-LD structured data ("image" field).
+   - MUST return a complete, absolute URL (starting with https://). If the HTML has a relative URL (like /images/product.jpg), combine it with the base domain ({base_domain}).
+3. PRODUCT LINK: Find the URL to the specific product page.
+   - Look in <a> tags wrapping the product title or image.
+   - MUST return a complete, absolute URL starting with {base_domain}.
+4. SPECIFICATIONS: Extract key product specs from <meta> tags or <li> elements.
 
-3. Return ONLY a valid JSON array. NO explanations, NO markdown fences,
-   NO extra text before or after the array.
-
-Example response:
+OUTPUT FORMAT:
+Return ONLY a valid JSON array. Do not include markdown formatting (no ```json), no explanations, and no extra text.
+Each object in the array must strictly follow this schema:
 [
   {{
-    "name": "Apple iPhone 15 (128 GB) - Blue",
-    "price": "₹79,900",
-    "image_url": "https://m.media-amazon.com/images/I/71xb2xkN5qL._SX679.jpg",
-    "link": "https://www.amazon.in/dp/B0CHX1W1XY",
-    "specs": "128 GB, Blue, 5G"
+    "name": "Exact product title as shown on the page",
+    "price": "₹XX,XXX",
+    "image_url": "https://full-url-to-the-product-image.jpg",
+    "link": "https://full-url-to-the-product-page",
+    "specs": "key specs separated by | or semicolons"
   }}
 ]
 
-If no products match, return: []
+If no valid products are found, return exactly: []
 
-Now extract from this HTML:
+Here is the HTML to analyze:
 """
 
     def __init__(self):
@@ -102,11 +107,24 @@ Now extract from this HTML:
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
+    @staticmethod
+    def _extract_base_domain(html: str, target_site: str) -> str:
+        """Extract the base domain (scheme+host) from the HTML or return target_site."""
+        import re
+        match = re.search(r'<html[^>]*>\s*<head[^>]*>\s*<base\s+href=["\']([^"\']+)["\']', html, re.IGNORECASE)
+        if match:
+            return match.group(1).rstrip('/')
+        match = re.search(r'https?://[^/]+', html)
+        if match:
+            return match.group(0)
+        return target_site
+
     def extract_products(
         self,
         html: str,
         search_term: str,
         target_site: str = "",
+        base_domain: str = "",
     ) -> List[Dict]:
         """
         Ask Qwen to extract products from raw HTML.
@@ -124,6 +142,10 @@ Now extract from this HTML:
             return []
 
         cleaned_html = self._trim_html(html)
+        prompt = self._build_prompt(
+            search_term, target_site,
+            base_domain or self._extract_base_domain(html, target_site),
+        )
         prompt = self._build_prompt(search_term, target_site)
         full_prompt = f"{prompt}\n\nHTML Content:\n{cleaned_html}"
 
@@ -159,10 +181,11 @@ Now extract from this HTML:
             cleaned = cleaned[: self.html_max_chars] + "\n... [truncated]"
         return cleaned
 
-    def _build_prompt(self, search_term: str, target_site: str) -> str:
+    def _build_prompt(self, search_term: str, target_site: str, base_domain: str = "") -> str:
         site_line = f"Target Site: {target_site}\n" if target_site else ""
+        domain = base_domain or target_site or "the site domain"
         return self._PROMPT_TEMPLATE.format(
-            search_term=search_term, target_site=site_line.rstrip()
+            search_term=search_term, target_site=site_line.rstrip(), base_domain=domain,
         )
 
     def _parse_response(self, raw_text: str) -> List[Dict]:

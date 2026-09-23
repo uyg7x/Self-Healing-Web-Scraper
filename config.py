@@ -22,7 +22,21 @@ RETRY_DELAY = 3
 REQUEST_TIMEOUT = 30
 DELAY_BETWEEN_REQUESTS = (3, 6)
 
-PROXY_CONFIG = {"enabled": False, "proxies": []}
+PROXY_LIST = [
+    # Residential proxies format: "http://username:password@host:port"
+    # Example: "http://user123:pass456@res.proxyprovider.com:8000"
+    # For free proxies: "http://proxy.example.com:8080"
+]
+
+# Backward compatibility for existing proxy settings
+PROXY_CONFIG = {
+    "enabled": len(PROXY_LIST) > 0,
+    "proxies": PROXY_LIST,
+    "rotation_strategy": "random",
+    "health_check": True,
+    "health_check_timeout": 10,
+    "max_failures": 3
+}
 EMAIL_CONFIG = {"enabled": False, "smtp_server": "smtp.gmail.com", "smtp_port": 587, "email": "", "password": "", "recipient": ""}
 SCHEDULE_TIME = "09:00"
 
@@ -43,7 +57,7 @@ SITES_CONFIG = {
         "name": "Robu.in",
         "url": "https://robu.in",
         "base_search_url": "https://robu.in/?s={query}",
-        "js_required": False,
+        "js_required": True,
         "currency": "INR",
         "selectors": [
             {"product_name": ".woocommerce-loop-product__title, h2.product-title",
@@ -126,7 +140,7 @@ if not GEMINI_API_KEY:
     GEMINI_API_KEY = ""
 
 # Free-tier model. gemini-2.0-flash is fast, cheap, and great for this.
-GEMINI_MODEL = "gemini-2.0-flash"
+GEMINI_MODEL = "gemini-1.5-flash-latest"
 
 # How many characters of cleaned HTML to send to Gemini.
 # 20,000 is a safe balance between "enough context" and "stays under
