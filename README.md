@@ -1,8 +1,3 @@
-Here is a massive, developer-grade upgrade to your `README.md`. 
-
-It includes a typing animation, interactive Mermaid diagrams, a detailed mindmap, collapsible deep-dive sections, and a professional layout that explains the **Phase 1 (Anti-Bot)** and **Phase 2 (Hybrid Fetching)** architecture in full detail.
-
-Copy and paste this entire block into your `README.md`:
 
 ***
 
