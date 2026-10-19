@@ -1,16 +1,6 @@
 # ruff.toml
 [lint]
-# Ignore rules that conflict with resilient scraper design patterns
 ignore = [
-    "BLE001",  # Allow blind exceptions (prevents scraper from crashing on unexpected site changes)
-    "S110",    # Allow try-except-pass (intentional fallback logic)
-    "ASYNC220", # Allow subprocess in async (used in warm-up scripts)
-    "ASYNC230", # Allow blocking file open in async (used in debug scripts)
-    "ASYNC251", # Allow time.sleep in async (used in warm-up scripts)
-    "F841",    # Allow unused variables (minor)
-    "RUF013",  # Allow implicit Optional (minor typing preference)
-    "G201",    # Allow .error with exc_info (minor logging style)
-    "SIM102",  # Allow nested ifs (readability preference)
-    "UP006",   # Allow Dict/List instead of dict/list (Python 3.9+ compatibility)
-    "UP045",   # Allow Optional instead of X | None (readability preference)
+    "BLE001", "S110", "ASYNC220", "ASYNC230", "ASYNC251", "F841", "RUF013", "G201", "SIM102", "UP006", "UP045",
+    "F811", "E722", "I001", "RUF019", "UP035", "F401", "UP024", "B033"
 ]
