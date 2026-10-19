@@ -10,5 +10,7 @@ ignore = [
     "F841",    # Allow unused variables (minor)
     "RUF013",  # Allow implicit Optional (minor typing preference)
     "G201",    # Allow .error with exc_info (minor logging style)
-    "SIM102"   # Allow nested ifs (readability preference)
+    "SIM102",  # Allow nested ifs (readability preference)
+    "UP006",   # Allow Dict/List instead of dict/list (Python 3.9+ compatibility)
+    "UP045",   # Allow Optional instead of X | None (readability preference)
 ]
