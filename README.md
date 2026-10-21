@@ -8,7 +8,7 @@
   <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=600&size=28&pause=1000&color=2CA5E0&center=true&vCenter=true&random=false&width=600&lines=Self-Healing+Web+Scraper;Enterprise+Price+Intelligence;Anti-Bot+Resilient+Architecture;Hybrid+Fetching+Engine" alt="Typing SVG" />
 </a>
 
-#  Self-Healing E-Commerce Scraper
+#   Self-Healing E-Commerce Scraper
 
 **An Enterprise-Grade, Anti-Bot Resilient Price Intelligence Engine**
 
