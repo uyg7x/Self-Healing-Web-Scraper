@@ -26,7 +26,7 @@
 
 ---
 
-##  Table of Contents
+##  Table of Content
 1. [The Philosophy](#-the-philosophy)
 2. [Architecture Mindmap](#-architecture-mindmap)
 3. [Execution Flowchart](#-execution-flowchart)
