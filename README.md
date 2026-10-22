@@ -48,7 +48,7 @@ A traditional scraper uses a single CSS selector. When the site redesigns, it br
 
 ---
 
-## 🗺️ Architecture Mindmap
+##  Architecture Mindmap
 
 ```text
 Self-Healing Scraper Architecture
