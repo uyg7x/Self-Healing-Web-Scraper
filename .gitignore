@@ -1,50 +1,91 @@
-# Python
+# ============================================================
+#  SECRETS — NEVER COMMIT
+# ============================================================
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+config_local.py
+
+# ============================================================
+#  SESSION / BROWSER DATA (Amazon cookies, Chrome profile!)
+# ============================================================
+data/
+scrapoxy/
+*.cookies.json
+cookies.json
+chrome_profile/
+user_data_dir/
+sessions/
+
+# ============================================================
+#  PYTHON
+# ============================================================
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
-*.egg-info/
-*.egg
-dist/
+.Python
 build/
+dist/
+eggs/
+*.egg-info/
 .eggs/
-*.manifest
-*.spec
+*.egg
+_pycache_/
 
-# Virtual environments
-venv/
+# ============================================================
+#  VIRTUAL ENVIRONMENTS
+# ============================================================
 .venv/
-env/
-.env/
+.venv*/
+venv/
 ENV/
+env/
+.virtualenv/
 
-# IDE
+# ============================================================
+#  CACHES & TOOLING
+# ============================================================
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+.cache/
+*.log
+
+# ============================================================
+#  DATABASES & SCRAPED OUTPUT
+# ============================================================
+*.db
+*.sqlite
+*.sqlite3
+*.csv
+*.xlsx
+*.pdf
+# (uncomment below if you want sample CSVs to be pushed)
+# !sample_data/*.csv
+
+# ============================================================
+#  OS / IDE
+# ============================================================
+.DS_Store
+Thumbs.db
+desktop.ini
 .vscode/
 .idea/
 *.swp
 *.swo
-.DS_Store
-Thumbs.db
-
-# Data & logs (keep folder, ignore contents)
-data/*.db
-data/*.csv
-data/*.json
-data/*.log
-data/*.html
-data/__pycache__/
-
-# Playwright
-.playwright/
-playwright/.local-browsers/
-
-# Secrets
-.env
-*.pem
-*.key
-config.local.py
-config.py
-
-# OS
-*.lnk
 *~
+
+# ============================================================
+#  NODE (if any tooling uses it)
+# ============================================================
+node_modules/
+
+# Scrape artifacts / local credentials
+amazon_debug.html
+proxies.txt

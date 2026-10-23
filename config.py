@@ -79,15 +79,16 @@ SITES_CONFIG = {
         ],
         "regex_fallback": {"product_name": r'<h3><a[^>]*title="([^"]+)"', "price": r'£([\d.]+)'},
     },
-    "amazon": {
+        "amazon": {
         "name": "Amazon India",
         "url": "https://www.amazon.in",
         "base_search_url": "https://www.amazon.in/s?k={query}",
         "js_required": True,
         "currency": "INR",
-        "selectors": [
-            {"product_name": "h2 a span.a-text-normal, span.a-size-medium",
-             "price": "span.a-price .a-offscreen"},
+                       "selectors": [
+            {"product_name": "div[data-component-type='s-search-result'] h2 a span, h2 a span, h2 span",
+             "price": "span.a-price span.a-offscreen", 
+             "specs": "div.a-row.a-size-base.a-color-secondary"}
         ],
         "regex_fallback": {"product_name": r'<span[^>]*class="[^"]*a-text-normal[^"]*"[^>]*>([^<]{10,})</span>', "price": r'₹([\d,]+)'},
     },
@@ -104,6 +105,30 @@ SITES_CONFIG = {
         ],
         "regex_fallback": {"product_name": r'title="([^"]{10,})"', "price": r'₹([\d,]+)'},
     },
+        "meesho": {
+        "name": "Meesho",
+        "url": "https://www.meesho.com",
+        "base_search_url": "https://www.meesho.com/search?q={query}",
+        "js_required": True,
+        "currency": "INR",
+        "selectors": [
+            {"product_name": "p.sc-ftHTX, h3", 
+             "price": "h5, span.sc-ftHTX"}
+        ],
+        "regex_fallback": {"product_name": r'class="[^"]*"[^>]*>([^<]{10,})<', "price": r'₹([\d,]+)'},
+    },
+    "alibaba": {
+        "name": "Alibaba",
+        "url": "https://www.alibaba.com",
+        "base_search_url": "https://www.alibaba.com/trade/search?SearchText={query}",
+        "js_required": True,
+        "currency": "USD", # We will convert USD to INR automatically!
+        "selectors": [
+            {"product_name": "h2.search-card-e-title", 
+             "price": "div.search-card-e-price-main"}
+        ],
+        "regex_fallback": {"product_name": r'title="([^"]{10,})"', "price": r'\$([\d.,]+)'},
+    }
 }
 
 VALIDATION_RULES = {
@@ -164,7 +189,7 @@ LLM_HTML_MAX_CHARS = 20000
 # ----------------------------------------------------------------------
 COE_AI_CONFIG = {
     "enabled":       True,                          # flip to False to skip Qwen
-    "base_url":      "https://ai.tcetcercd.in/v1",
+    "base_url":      "",
     "api_key":       os.getenv("COE_AI_KEY", ""),   # <- comes from env (set below)
     "model":         "qwen3.6",                     # gateway ignores model name
     "max_tokens":    2048,
