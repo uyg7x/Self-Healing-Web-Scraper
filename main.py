@@ -1,312 +1,294 @@
 """
-MAIN RUNNER (Interactive Price Comparator with Links, Specs & INR)
-
-Features:
-- Shows which platform (Amazon, Flipkart, Robu, ...) AND which strategy
-  (JSON-LD, CSS, regex, self-heal, LLM/Gemini) every product came from.
-- Interactive AI mode: when a site's 4 traditional strategies all fail,
-  the user is asked "Use AI (Gemini) for this site? [y/N]". Only if they
-  answer 'y' do we call Gemini and stamp those products as
-  "Gemini AI • llm".
+MAIN RUNNER (Interactive Price Comparator with Clean UI & Phase 4 Sanity Checks)
 """
 
-import sys
-import io
-import logging
-import csv
 import argparse
 import asyncio
+import csv
+import io
+import logging
+import sys
 import warnings
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import quote_plus
 
-# CRITICAL: Fix Windows Unicode crashes (cp1252 error) for emojis and ₹ symbols
+# Fix Windows Unicode crashes for emojis/colors
 if sys.platform.startswith("win"):
     try:
-        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
-    except (ValueError, AttributeError):
+        sys.stdout = io.TextIOWrapper(
+            sys.stdout.buffer, encoding="utf-8", errors="replace"
+        )
+        sys.stderr = io.TextIOWrapper(
+            sys.stderr.buffer, encoding="utf-8", errors="replace"
+        )
+    except Exception:
         pass
-    try:
-        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
-    except (ValueError, AttributeError):
-        pass
 
-warnings.filterwarnings("ignore", category=ResourceWarning, message="unclosed transport")
+warnings.filterwarnings("ignore", category=ResourceWarning)
+sys.unraisablehook = lambda exc: None
 
-# Hide "Exception ignored in __del__" errors (Windows/Playwright cleanup glitch)
-def ignore_unraisable_exceptions(exc):
-    pass  # Do nothing, just ignore it silently
-
-sys.unraisablehook = ignore_unraisable_exceptions
-
-from config import SITES_CONFIG, LOG_LEVEL, LOG_FILE, DATA_DIR, CURRENCY_TO_INR, COE_AI_CONFIG
+from alerts import AlertSystem
+from config import CURRENCY_TO_INR, DATA_DIR, LOG_FILE, SITES_CONFIG
+from database import Database
+from qwen_fallback import QwenFallback
 from scraper_engine import ScraperEngine
 from self_healing import SelfHealingSystem
 from validators import DataValidator
-from database import Database
-from alerts import AlertSystem
-from qwen_fallback import QwenFallback
 
-# ----------------------------------------------------------------------
-# Display helpers — turn a strategy index/method into a friendly label
-# ----------------------------------------------------------------------
+# ==========================================
+# 🎨 ANSI COLOR CODES
+# ==========================================
+CYAN = "\033[96m"
+GREEN = "\033[92m"
+YELLOW = "\033[93m"
+RED = "\033[91m"
+MAGENTA = "\033[95m"
+RESET = "\033[0m"
+BOLD = "\033[1m"
+
 STRATEGY_LABELS = {
-    "json_ld":           "JSON-LD (structured data)",
-    "css_selector":      "CSS selector",
-    "regex":             "Regex fallback",
-    "self_healing":      "Self-healing (fuzzy match)",
-    "llm":               "Gemini AI (LLM)",
-    "qwen_ai_fallback":  "Qwen AI (CoE Gateway)",
+    "json_ld": "JSON-LD",
+    "embedded_json": "Embedded JSON",
+    "css_selector": "CSS selector",
+    "regex": "Regex fallback",
+    "self_healing": "Self-healing",
+    "llm": "Gemini AI",
+    "qwen_ai_fallback": "Qwen AI",
 }
-
-def format_source(website: str, method: str) -> str:
-    """
-    Build the "designation" string used in logs, terminal output and CSV.
-    Example outputs:
-        "Amazon India • CSS selector"
-        "Robu.in • Gemini AI (LLM)"
-    """
-    label = STRATEGY_LABELS.get(method, method or "unknown")
-    return f"{website} • {label}"
 
 
 def setup_logging():
+    # 🔇 We only log ERRORS to the terminal, but keep everything in the log file.
     logging.basicConfig(
-        level=getattr(logging, LOG_LEVEL),
+        level=logging.WARNING,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
         handlers=[
             logging.FileHandler(str(LOG_FILE), encoding="utf-8"),
-            logging.StreamHandler(sys.stderr),
-        ]
+            logging.StreamHandler(sys.stderr),  # Terminal shows warnings/errors only
+        ],
     )
+    # Silence specific noisy libraries
+    logging.getLogger("scraper_engine").setLevel(logging.ERROR)
+    logging.getLogger("stealth_fetcher").setLevel(logging.ERROR)
+    logging.getLogger("urllib3").setLevel(logging.ERROR)
     return logging.getLogger(__name__)
 
 
-def ask_user_yes_no(prompt: str, default: str = "n") -> bool:
-    """
-    Tiny helper: print a prompt, read y/n, return True/False.
-    Empty Enter -> use the default ("n" by default).
-    Accepts y/yes/n/no (case-insensitive).
-    """
-    suffix = "[y/N]" if default.lower() == "n" else "[Y/n]"
-    try:
-        ans = input(f"{prompt} {suffix}: ").strip().lower()
-    except EOFError:
-        return default == "y"
-    if not ans:
-        return default == "y"
-    return ans in ("y", "yes")
+# ==========================================
+# 🎡 SPINNER ANIMATION
+# ==========================================
+async def show_spinner(message: str, stop_event: asyncio.Event):
+    chars = ["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"]
+    i = 0
+    while not stop_event.is_set():
+        sys.stdout.write(f"\r{CYAN}{message} {chars[i % len(chars)]}{RESET}   ")
+        sys.stdout.flush()
+        await asyncio.sleep(0.1)
+        i += 1
+    sys.stdout.write("\r" + " " * (len(message) + 10) + "\r")  # Clear line
+    sys.stdout.flush()
 
 
-async def scrape_site(site_key, site_config, engine, healing, validator, db, alerts,
-                results_collector, search_date, search_time, search_term,
-                demo_mode=False, qwen=None):
+# ==========================================
+# 🕷️ SCRAPING LOGIC (PHASE 2 HYBRID CASCADE)
+# ==========================================
+async def scrape_site(
+    site_key,
+    site_config,
+    engine,
+    healing,
+    validator,
+    db,
+    alerts,
+    results_collector,
+    search_date,
+    search_time,
+    search_term,
+    qwen=None,
+):
     logger = logging.getLogger(__name__)
     site_name = site_config["name"]
     target_url = site_config["category_url"]
-
-    print(f"\n  Searching {site_name}...")
-    print(f"     URL: {target_url}")
-
     selectors = healing.get_prioritized_selectors(site_key, site_config["selectors"])
 
-    # --- DEMO MODE: scramble CSS selectors to force the fallback cascade ---
-    if demo_mode and site_config.get("selectors"):
-        print(f"     [DEMO] Scrambling CSS selectors to simulate a site redesign...")
-        original_selectors = selectors
-        scrambled = []
-        for sel in site_config["selectors"]:
-            scrambled.append({k: v + "___BROKEN___" for k, v in sel.items()})
-        selectors = scrambled
-        logger.info(f"DEMO MODE: selectors scrambled for {site_name}")
-    html = await engine.fetch_page(target_url, js_required=site_config["js_required"])
-    if not html:
-        logger.error(f"Failed to fetch {site_name} (Blocked/CAPTCHA)")
-        return
+    products = []
+    scrape_info = {}
+    html = None
 
-    # Try the 5 built-in strategies first
-    # (JSON-LD, CSS, regex, fuzzy self-heal, Gemini LLM).
-    products, scrape_info = engine.extract_data(
-        html, site_config["url"], selectors, site_config["regex_fallback"]
+    # --- 1. FAST TLS FETCH (Phase 2) ---
+    stop_spinner = asyncio.Event()
+    spinner_task = asyncio.create_task(
+        show_spinner(f"Scanning {BOLD}{site_name}{RESET} (Fast)...", stop_spinner)
     )
+
+    # We pass max_retries=1 to fail fast if the site blocks standard requests
+    html = await engine.fetch_page(target_url, js_required=False, max_retries=1)
+    if html:
+        products, scrape_info = engine.extract_data(
+            html, site_config["url"], selectors, site_config["regex_fallback"]
+        )
+
+    # --- 2. HEAVY BROWSER FALLBACK (Phase 2) ---
+    if not products and site_config.get("js_required", False):
+        stop_spinner.set()
+        await spinner_task
+        print(
+            f"  {YELLOW}⚠{RESET} {site_name}: Fast fetch empty. Launching Stealth Browser..."
+        )
+
+        stop_spinner = asyncio.Event()
+        spinner_task = asyncio.create_task(
+            show_spinner(f"Rendering {BOLD}{site_name}{RESET} (JS)...", stop_spinner)
+        )
+
+        html = await engine.fetch_page(target_url, js_required=True)
+        if html:
+            products, scrape_info = engine.extract_data(
+                html, site_config["url"], selectors, site_config["regex_fallback"]
+            )
+
+    stop_spinner.set()
+    await spinner_task
 
     used_method = scrape_info.get("method", "")
 
-    # If everything failed, optionally ask the user if they want AI mode.
-    if not products:
-        logger.warning(f"No products found on {site_name} using traditional methods.")
-        print(f"     [WARN] No output found on {site_name} after 5 strategies.")
-
-        if ask_user_yes_no(
-            f"     No output found. Use LLM (Google Gemini) mode for {site_name}?",
-            default="n",
-        ):
-            print(f"     Asking Gemini LLM to read {site_name}... (may take a few seconds)")
-            products = engine.extract_with_llm(
-                html, site_config["url"], search_hint=search_term
-            )
-            if products:
-                used_method = "llm"
-                scrape_info = {"strategy_index": -4, "method": "llm"}
-                logger.info(
-                    f"LLM HEALER SUCCEEDED on {site_name}! "
-                    f"Found {len(products)} product(s) via Gemini."
-                )
-                print(f"     [OK] Gemini LLM returned {len(products)} product(s).")
-            else:
-                logger.warning(f"Gemini also returned nothing for {site_name}.")
-                print(f"     [INFO] Gemini LLM also returned nothing for {site_name}.")
-        else:
-            print(f"     Skipping LLM mode for {site_name}.")
-
-    # --------------------------------------------------------------
-    # Strategy 6: Qwen AI (CoE Gateway) — AUTOMATIC, no prompt.
-    # Fires only when all 5 previous strategies returned nothing AND
-    # the user either declined Gemini or Gemini also returned nothing.
-    # We deliberately do NOT ask the user twice — Qwen runs silently
-    # as the "I will not give up" last resort.
-    # --------------------------------------------------------------
-    if not products and qwen is not None and qwen.enabled:
-        domain = site_config["url"].replace("https://", "").replace("http://", "").split("/")[0]
-        print(f"     [INFO] Asking Qwen AI (CoE Gateway) to read {site_name}...")
-        logger.info("All previous strategies failed. Trying Qwen AI Fallback on %s...", site_name)
-        qwen_products = qwen.extract_products(html, search_term, target_site=domain, base_domain=domain)
+    # --- 3. QWEN AI FALLBACK ---
+    if not products and qwen is not None and qwen.enabled and html:
+        qwen_products = qwen.extract_products(
+            html, search_term, target_site=site_config["url"]
+        )
         if qwen_products:
             products = qwen_products
             used_method = "qwen_ai_fallback"
             scrape_info = {"strategy_index": -5, "method": "qwen_ai_fallback"}
-            logger.info(
-                f"QWEN AI SUCCEEDED on {site_name}! Found {len(products)} product(s)."
-            )
-            print(f"     [OK] Qwen AI extracted {len(products)} product(s) (with images).")
-        else:
-            logger.warning(f"Qwen AI also returned nothing for {site_name}.")
-            print(f"     [INFO] Qwen AI also returned nothing for {site_name}.")
-            return
 
     if not products:
-        # Nothing worked for this site — log it and move on.
+        print(f"  {YELLOW}⚠{RESET} {site_name}: No products found.")
         return
 
+    # --- 4. PYDANTIC SCHEMA VALIDATION (Phase 4) ---
     valid_products = validator.filter_products(products, search_term)
     if not valid_products:
-        logger.warning(f"All products failed validation on {site_name}")
+        print(
+            f"  {YELLOW}⚠{RESET} {site_name}: Found items, but they failed validation/relevance checks."
+        )
         return
 
-    # Convert price to Indian Rupees + attach metadata
+    # Convert price to INR
     rate = CURRENCY_TO_INR.get(site_config.get("currency", "INR"), 1.0)
-
-    source_label = format_source(site_name, used_method)
-    print(f"     [OK] {len(valid_products)} product(s) from: {source_label}")
+    source_label = f"{site_name} • {STRATEGY_LABELS.get(used_method, used_method)}"
 
     for p in valid_products:
-        p['website'] = site_name
-        # The "designation" string shown in terminal and CSV
-        p['source'] = source_label
-        # Raw pieces in case downstream code wants them separately
-        p['extraction_method'] = used_method
-        p['date'] = search_date
-        p['time'] = search_time
-        if p.get('price_float'):
-            p['price_inr'] = f"₹{p['price_float'] * rate:,.0f}"
+        p["website"] = site_name
+        p["source"] = source_label
+        p["extraction_method"] = used_method
+        p["date"] = search_date
+        p["time"] = search_time
+
+        # 🔥 PHASE 4: Safe Currency Conversion
+        if p.get("price_float"):
+            converted_price = p["price_float"] * rate
+            # Absolute failsafe: Nothing on these sites costs > 5 Crores
+            if converted_price > 50000000:
+                p["price_inr"] = "N/A (Price Error)"
+                p["price_float"] = 0  # Invalidates it
+            else:
+                p["price_inr"] = f"₹{converted_price:,.0f}"
         else:
-            p['price_inr'] = "N/A"
+            p["price_inr"] = "N/A"
 
     results_collector.extend(valid_products)
-
-    # --- REAL-TIME PRICE MONITORING & ALERTS ---
-    drops_found = 0
-    price_changes = 0
-    
-    for p in valid_products:
-        if not p.get('price_float'):
-            continue
-            
-        # Check the database for the PREVIOUS price of this exact product on this site
-        cursor = db.conn.cursor()
-        cursor.execute("""
-            SELECT price_float FROM products 
-            WHERE product_name = ? AND site_name = ? AND price_float > 0
-            ORDER BY scrape_timestamp DESC LIMIT 1 OFFSET 1
-        """, (p['name'], site_name))
-        
-        prev_row = cursor.fetchone()
-        
-        if prev_row and prev_row[0] is not None:
-            prev_price = prev_row[0]
-            curr_price = p['price_float']
-            
-            # Detect Price Drop
-            if curr_price < prev_price:
-                drops_found += 1
-                price_changes += 1
-                print(f"     PRICE DROP: {p['name']} on {site_name} dropped from {prev_price:,.0f} to {curr_price:,.0f}!")
-                
-                # Trigger email alert if configured
-                # alerts.send_price_drop_alert(p['name'], prev_price, curr_price, site_name)
-                
-            # Detect Price Increase
-            elif curr_price > prev_price:
-                price_changes += 1
-                print(f"     PRICE INCREASE: {p['name']} on {site_name} increased from {prev_price:,.0f} to {curr_price:,.0f}.")
-
-    if drops_found > 0:
-        print(f"  SUCCESS: Detected {drops_found} price drop(s) during this run!")
-    elif price_changes > 0:
-        print(f"  Monitored {price_changes} price change(s) across all products.")
-    else:
-        print(f"  Prices are stable. No changes detected since last run.")
-
     db.save_products(valid_products, site_key, scrape_info)
-    healing.record_success(
-        site_key,
-        scrape_info.get("strategy_index", 0),
-        scrape_info.get("method", "unknown"),
+    healing.record_success(site_key, scrape_info.get("strategy_index", 0), used_method)
+
+    print(
+        f"  {GREEN}✓{RESET} {site_name}: Extracted {GREEN}{len(valid_products)}{RESET} valid products ({source_label})."
     )
 
 
-async def run_interactive_search(demo_mode=False):
-    print("\n" + "=" * 65)
-    print("  SELF-HEALING E-COMMERCE PRICE COMPARATOR")
-    if demo_mode:
-        print("  [DEMO MODE] CSS selectors will be scrambled to showcase")
-        print("  the self-healing cascade (CSS -> Regex -> Fuzzy -> LLM -> Qwen).")
-    print("=" * 65)
-    print("  REALITY CHECK: Amazon, Flipkart, Ajio, Meesho, ShopClues,")
-    print("  GlowRoad & Goodreads have heavy anti-bot systems. If they fail,")
-    print("  that is NORMAL. Robu.in, Sapna Online & BooksToScrape usually work.")
-    print("=" * 65)
-    print("  When no products are found on a site, the scraper will")
-    print("  automatically ask if you want to use LLM (Google Gemini) mode.")
-    print("=" * 65 + "\n")
-
-    search_term = input("  Enter the product you want to search for: ").strip()
-    if not search_term:
-        print("  No product entered. Exiting.")
+# ==========================================
+# 🎮 POST-SCRAPE MENU
+# ==========================================
+def handle_results_menu(scraped_data, csv_path, search_term):
+    if not scraped_data:
         return
 
-    print(f"\n  Searching '{search_term}' across {len(SITES_CONFIG)} platforms...\n")
-    encoded_query = quote_plus(search_term)
+    while True:
+        print(f"\n{BOLD}What would you like to do next?{RESET}")
+        print(f"  {CYAN}1.{RESET} View extracted products")
+        print(f"  {CYAN}2.{RESET} How to get Amazon data (Warm Cookies)")
+        print(f"  {CYAN}3.{RESET} Exit")
 
+        choice = input(f"\n{YELLOW}Enter choice [1-3]: {RESET}").strip()
+
+        if choice == "1":
+            print(f"\n{MAGENTA}--- Extracted Products for '{search_term}' ---{RESET}")
+            print(f"{'Website':<15} | {'Price':<15} | {'Name'}")
+            print("-" * 80)
+            for row in scraped_data:
+                name = (
+                    row.get("name", "")[:50] + "..."
+                    if len(row.get("name", "")) > 50
+                    else row.get("name", "")
+                )
+                price_str = str(row.get("price_inr", "N/A"))
+                print(f"{row.get('website'):<15} | {price_str:<15} | {name}")
+            print(f"\n{GREEN}✓ Complete CSV saved at: {csv_path}{RESET}\n")
+
+        elif choice == "2":
+            print(f"\n{YELLOW}--- Amazon Warm-Up Instructions ---{RESET}")
+            print("Amazon requires a 'Warm Session' to prevent bot detection.")
+            print("1. Run: python warm_amazon.py")
+            print("2. A browser will open. Log into Amazon normally.")
+            print("3. Press Enter in this terminal once you are logged in.")
+            print("4. The scraper will now automatically use these cookies.\n")
+
+        elif choice == "3":
+            print(f"\n{GREEN}Thank you for using the Self-Healing Scraper!{RESET}\n")
+            break
+
+
+# ==========================================
+# 🚀 MAIN EXECUTION
+# ==========================================
+async def run_interactive_search():
+    print(f"\n{CYAN}{'=' * 65}{RESET}")
+    print(f"{BOLD}{MAGENTA}  SELF-HEALING E-COMMERCE PRICE COMPARATOR{RESET}")
+    print(f"{CYAN}{'=' * 65}{RESET}")
+
+    # Check for Amazon cookies
+    if not Path("data/sessions/amazon_cookies.json").exists():
+        print(f"{YELLOW}⚠ WARNING: Amazon cookies not found!{RESET}")
+        print("  Amazon will likely block the scraper. To fix this:")
+        print(
+            f"  Run {BOLD}python warm_amazon.py{RESET} in a separate terminal first.\n"
+        )
+
+    search_term = input(
+        f"{YELLOW}Enter the product you want to search for: {RESET}"
+    ).strip()
+    if not search_term:
+        print(f"{RED}No product entered. Exiting.{RESET}")
+        return
+
+    print(f"\n{BOLD}Searching '{search_term}' across platforms...{RESET}\n")
+
+    encoded_query = quote_plus(search_term)
     all_scraped_data = []
+
     engine = ScraperEngine()
     healing = SelfHealingSystem()
     validator = DataValidator()
     db = Database()
     alerts = AlertSystem()
-    qwen = QwenFallback()  # Strategy 6 — auto-disabled if key missing
-
-    if qwen.enabled:
-        print("  [Strategy 6] Qwen AI (CoE Gateway) is ARMED as final fallback.")
-    else:
-        print("  [Strategy 6] Qwen AI disabled (no COE_AI_KEY / not enabled in config).")
+    qwen = QwenFallback()
 
     now = datetime.now()
     search_date = now.strftime("%Y-%m-%d")
     search_time = now.strftime("%H:%M:%S")
 
-    sorted_sites = sorted(SITES_CONFIG.items(), key=lambda item: item[1]['name'])
+    sorted_sites = sorted(SITES_CONFIG.items(), key=lambda item: item[1]["name"])
 
     for site_key, site_config in sorted_sites:
         base_url = site_config.get("base_search_url")
@@ -314,88 +296,96 @@ async def run_interactive_search(demo_mode=False):
             continue
         site_config_dynamic = site_config.copy()
         site_config_dynamic["category_url"] = base_url.replace("{query}", encoded_query)
+
         await scrape_site(
-            site_key, site_config_dynamic, engine, healing, validator, db, alerts,
-            all_scraped_data, search_date, search_time, search_term,
-            demo_mode=demo_mode, qwen=qwen,
+            site_key,
+            site_config_dynamic,
+            engine,
+            healing,
+            validator,
+            db,
+            alerts,
+            all_scraped_data,
+            search_date,
+            search_time,
+            search_term,
+            qwen=qwen,
         )
 
-    # --- EXPORT TO CSV ---
+    # Save CSV
     if all_scraped_data:
-        all_scraped_data.sort(key=lambda x: x['website'])
+        all_scraped_data.sort(key=lambda x: x["website"])
+        safe_term = (
+            "".join([c for c in search_term if c.isalnum() or c == " "])
+            .rstrip()
+            .replace(" ", "_")[:30]
+        )
+        csv_path = (
+            DATA_DIR
+            / f"price_comparison_{safe_term}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        )
 
-        safe_term = "".join(
-            [c for c in search_term if c.isalpha() or c.isdigit() or c == ' ']
-        ).rstrip().replace(" ", "_")[:30]
-        csv_path = DATA_DIR / f"price_comparison_{safe_term}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-
-        # 'Source' is the new designation column (e.g. "Amazon India • CSS selector")
         fieldnames = [
-            'Source',
-            'Website Name',
-            'Product Name',
-            'Price (INR)',
-            'Relevance Score',     # 0-100 score from the RelevanceScorer
-            'Specifications',
-            'Product Image URL',   # populated mainly by Qwen AI fallback
-            'Product Link',
-            'Date',
-            'Time',
+            "Source",
+            "Website Name",
+            "Product Name",
+            "Price (INR)",
+            "Relevance Score",
+            "Specifications",
+            "Product Image URL",
+            "Product Link",
+            "Date",
+            "Time",
         ]
-        with open(csv_path, mode='w', newline='', encoding='utf-8') as f:
+
+        with open(csv_path, mode="w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
             for row in all_scraped_data:
-                writer.writerow({
-                    'Source':             row.get('source', row.get('website', '')),
-                    'Website Name':       row.get('website'),
-                    'Product Name':       row.get('name'),
-                    'Price (INR)':        row.get('price_inr'),
-                    'Relevance Score':    row.get('_relevance_score', 'N/A'),
-                    'Specifications':     row.get('specs'),
-                    'Product Image URL':  row.get('image_url', '') or '',
-                    'Product Link':       row.get('link'),
-                    'Date':               row.get('date'),
-                    'Time':               row.get('time'),
-                })
+                writer.writerow(
+                    {
+                        "Source": row.get("source", ""),
+                        "Website Name": row.get("website", ""),
+                        "Product Name": row.get("name", ""),
+                        "Price (INR)": row.get("price_inr", ""),
+                        "Relevance Score": row.get("_relevance_score", "N/A"),
+                        "Specifications": row.get("specs", ""),
+                        "Product Image URL": row.get("image_url", "") or "",
+                        "Product Link": row.get("link", ""),
+                        "Date": row.get("date", ""),
+                        "Time": row.get("time", ""),
+                    }
+                )
 
-        # Pretty summary by source so the user can see designation at a glance
-        print("\n" + "=" * 65)
-        print("  RESULTS BY SOURCE (designation):")
-        print("=" * 65)
-        by_source = {}
-        for row in all_scraped_data:
-            src = row.get('source', row.get('website', 'Unknown'))
-            by_source[src] = by_source.get(src, 0) + 1
-        for src, count in sorted(by_source.items()):
-            print(f"     {count:>3}  -  {src}")
-        print("=" * 65)
-        print(f"  SUCCESS! Saved {len(all_scraped_data)} items total.")
-        print(f"  CSV saved at: {csv_path}")
-        print("=" * 65 + "\n")
+        print(f"\n{CYAN}{'=' * 65}{RESET}")
+        print(
+            f"{GREEN}{BOLD}🎉 SUCCESS! Saved {len(all_scraped_data)} items total.{RESET}"
+        )
+        print(f"{GREEN}📁 CSV saved at: {csv_path}{RESET}")
+        print(f"{CYAN}{'=' * 65}{RESET}")
+
+        # Open Menu
+        handle_results_menu(all_scraped_data, csv_path, search_term)
     else:
-        print("\n  NO DATA COLLECTED. Sites likely blocked the scraper. Check data/scraper.log")
+        print(f"\n{RED}✗ NO DATA COLLECTED. Sites likely blocked the scraper.{RESET}")
 
     db.close()
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Self-Healing E-Commerce Price Comparator",
-    )
-    parser.add_argument(
-        "--demo",
-        action="store_true",
-        help="Breakage simulator: scramble CSS selectors to demonstrate "
-             " the self-healing fallback cascade (CSS -> Regex -> Fuzzy -> LLM).",
+        description="Self-Healing E-Commerce Price Comparator"
     )
     args = parser.parse_args()
 
     setup_logging()
-    asyncio.run(run_interactive_search(demo_mode=args.demo))
-    
-    # Give Windows/Playwright 1 full second to close background pipes cleanly
+    try:
+        asyncio.run(run_interactive_search())
+    except KeyboardInterrupt:
+        print(f"\n{RED}Scraping cancelled by user.{RESET}")
+
     import time
+
     time.sleep(1)
 
 
