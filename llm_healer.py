@@ -23,7 +23,6 @@ The class is intentionally beginner-friendly:
 import json
 import logging
 import re
-from typing import List, Dict, Optional
 
 # We import the SDK lazily (inside the method) so that the rest of the
 # scraper can still run on machines where google-generativeai isn't
@@ -31,7 +30,6 @@ from typing import List, Dict, Optional
 # cheap and safe.
 #
 # `import google.generativeai as genai`  <- happens inside _configure()
-
 from config import GEMINI_API_KEY, GEMINI_MODEL, LLM_HTML_MAX_CHARS
 
 logger = logging.getLogger(__name__)
@@ -69,7 +67,7 @@ HTML (may be truncated):
 {html}
 """
 
-    def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None):
+    def __init__(self, api_key: str | None = None, model: str | None = None):
         """
         Args:
             api_key: Gemini API key. If None, we read from config.GEMINI_API_KEY.
@@ -88,7 +86,7 @@ HTML (may be truncated):
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
-    def heal(self, html: str, search_term: str) -> List[Dict]:
+    def heal(self, html: str, search_term: str) -> list[dict]:
         """
         Ask Gemini to extract products from `html` for `search_term`.
 
@@ -222,7 +220,7 @@ HTML (may be truncated):
         # Last resort
         return str(response)
 
-    def _parse_products(self, raw: str) -> List[Dict]:
+    def _parse_products(self, raw: str) -> list[dict]:
         """
         Parse Gemini's reply into a clean list of product dicts.
 
@@ -268,7 +266,7 @@ HTML (may be truncated):
 
         # 4. Normalize each item so the rest of the pipeline can rely on
         #    the same shape it gets from other strategies.
-        cleaned: List[Dict] = []
+        cleaned: list[dict] = []
         for item in data:
             if not isinstance(item, dict):
                 continue

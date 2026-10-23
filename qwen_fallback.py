@@ -22,7 +22,6 @@ Key design points:
 import json
 import logging
 import re
-from typing import List, Dict, Optional
 
 from config import COE_AI_CONFIG
 
@@ -94,14 +93,21 @@ Here is the HTML to analyze:
                 # Imported here (lazy) so missing 'openai' package doesn't
                 # crash the rest of the scraper.
                 from openai import OpenAI
+
                 self.client = OpenAI(base_url=self.base_url, api_key=self.api_key)
-                logger.info("✅ Qwen Fallback: Connected to CoE AI Gateway (%s)", self.base_url)
+                logger.info(
+                    "✅ Qwen Fallback: Connected to CoE AI Gateway (%s)", self.base_url
+                )
             except Exception as e:
-                logger.error("❌ Qwen Fallback: failed to initialise OpenAI client: %s", e)
+                logger.error(
+                    "❌ Qwen Fallback: failed to initialise OpenAI client: %s", e
+                )
                 self.enabled = False
         else:
             if self.enabled:
-                logger.warning("Qwen Fallback enabled in config but no api_key set — disabling.")
+                logger.warning(
+                    "Qwen Fallback enabled in config but no api_key set — disabling."
+                )
             self.enabled = False
 
     # ------------------------------------------------------------------
@@ -111,10 +117,15 @@ Here is the HTML to analyze:
     def _extract_base_domain(html: str, target_site: str) -> str:
         """Extract the base domain (scheme+host) from the HTML or return target_site."""
         import re
-        match = re.search(r'<html[^>]*>\s*<head[^>]*>\s*<base\s+href=["\']([^"\']+)["\']', html, re.IGNORECASE)
+
+        match = re.search(
+            r'<html[^>]*>\s*<head[^>]*>\s*<base\s+href=["\']([^"\']+)["\']',
+            html,
+            re.IGNORECASE,
+        )
         if match:
-            return match.group(1).rstrip('/')
-        match = re.search(r'https?://[^/]+', html)
+            return match.group(1).rstrip("/")
+        match = re.search(r"https?://[^/]+", html)
         if match:
             return match.group(0)
         return target_site
@@ -125,7 +136,7 @@ Here is the HTML to analyze:
         search_term: str,
         target_site: str = "",
         base_domain: str = "",
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """
         Ask Qwen to extract products from raw HTML.
 
@@ -138,12 +149,15 @@ Here is the HTML to analyze:
             return []
 
         if not html or len(html) < 100:
-            logger.warning("HTML too short for Qwen extraction (%d chars)", len(html or ""))
+            logger.warning(
+                "HTML too short for Qwen extraction (%d chars)", len(html or "")
+            )
             return []
 
         cleaned_html = self._trim_html(html)
         prompt = self._build_prompt(
-            search_term, target_site,
+            search_term,
+            target_site,
             base_domain or self._extract_base_domain(html, target_site),
         )
         prompt = self._build_prompt(search_term, target_site)
@@ -152,7 +166,8 @@ Here is the HTML to analyze:
         try:
             logger.info(
                 "🔍 Qwen Fallback: extracting products for '%s' (target=%s)...",
-                search_term, target_site or "any",
+                search_term,
+                target_site or "any",
             )
             response = self.client.chat.completions.create(
                 model=self.model,
@@ -173,28 +188,38 @@ Here is the HTML to analyze:
     # ------------------------------------------------------------------
     def _trim_html(self, html: str) -> str:
         """Strip <script>, <style>, comments, collapse whitespace, cap length."""
-        cleaned = re.sub(r"<script\b[^>]*>.*?</script>", "", html, flags=re.IGNORECASE | re.DOTALL)
-        cleaned = re.sub(r"<style\b[^>]*>.*?</style>", "", cleaned, flags=re.IGNORECASE | re.DOTALL)
+        cleaned = re.sub(
+            r"<script\b[^>]*>.*?</script>", "", html, flags=re.IGNORECASE | re.DOTALL
+        )
+        cleaned = re.sub(
+            r"<style\b[^>]*>.*?</style>", "", cleaned, flags=re.IGNORECASE | re.DOTALL
+        )
         cleaned = re.sub(r"<!--.*?-->", "", cleaned, flags=re.DOTALL)
         cleaned = re.sub(r"\s+", " ", cleaned).strip()
         if len(cleaned) > self.html_max_chars:
             cleaned = cleaned[: self.html_max_chars] + "\n... [truncated]"
         return cleaned
 
-    def _build_prompt(self, search_term: str, target_site: str, base_domain: str = "") -> str:
+    def _build_prompt(
+        self, search_term: str, target_site: str, base_domain: str = ""
+    ) -> str:
         site_line = f"Target Site: {target_site}\n" if target_site else ""
         domain = base_domain or target_site or "the site domain"
         return self._PROMPT_TEMPLATE.format(
-            search_term=search_term, target_site=site_line.rstrip(), base_domain=domain,
+            search_term=search_term,
+            target_site=site_line.rstrip(),
+            base_domain=domain,
         )
 
-    def _parse_response(self, raw_text: str) -> List[Dict]:
+    def _parse_response(self, raw_text: str) -> list[dict]:
         """Parse Qwen's reply into a list of clean product dicts."""
         if not raw_text:
             return []
 
         # Strip ```json ... ``` fences if the model wrapped the answer.
-        raw_text = re.sub(r"^```(?:json)?\s*", "", raw_text.strip(), flags=re.IGNORECASE)
+        raw_text = re.sub(
+            r"^```(?:json)?\s*", "", raw_text.strip(), flags=re.IGNORECASE
+        )
         raw_text = re.sub(r"\s*```$", "", raw_text.strip())
 
         try:
@@ -212,22 +237,26 @@ Here is the HTML to analyze:
                 return []
 
         if not isinstance(products, list):
-            logger.error("Qwen response was not a list (got %s).", type(products).__name__)
+            logger.error(
+                "Qwen response was not a list (got %s).", type(products).__name__
+            )
             return []
 
-        cleaned: List[Dict] = []
+        cleaned: list[dict] = []
         for item in products:
             if not isinstance(item, dict):
                 continue
             name = str(item.get("name", "")).strip()
             if not name or len(name) < 5:
                 continue
-            cleaned.append({
-                "name":      name,
-                "price":     str(item.get("price", "N/A")).strip(),
-                "image_url": str(item.get("image_url", "")).strip(),
-                "link":      str(item.get("link", "N/A")).strip(),
-                "specs":     str(item.get("specs", "N/A")).strip(),
-                "method":    "qwen_ai_fallback",
-            })
+            cleaned.append(
+                {
+                    "name": name,
+                    "price": str(item.get("price", "N/A")).strip(),
+                    "image_url": str(item.get("image_url", "")).strip(),
+                    "link": str(item.get("link", "N/A")).strip(),
+                    "specs": str(item.get("specs", "N/A")).strip(),
+                    "method": "qwen_ai_fallback",
+                }
+            )
         return cleaned
