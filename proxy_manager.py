@@ -1,38 +1,39 @@
-from datetime import datetime, timedelta
 import random
 import time
-from typing import Optional
+
 
 class ProxyManager:
-    def __init__(self, proxies: list):
-        self.proxies = proxies
-        self.ban_list = {}  # proxy -> unban time
+    """
+    Custom Proxy Manager (No external dependencies).
+    Handles rotation and temporarily benches bad proxies.
+    """
 
-    def get(self) -> Optional[str]:
-        """
-        Returns an available proxy. If none are available, returns None 
-        to allow a direct connection instead of hanging.
-        """
-        now = datetime.now()
-        
-        # Clean up expired bans
-        self.ban_list = {
-            proxy: expiry for proxy, expiry in self.ban_list.items() 
-            if expiry > now
-        }
-        
-        # Find available proxies
-        available = [p for p in self.proxies if p not in self.ban_list]
-        
-        if not available:
-            print("[!] No proxies available. Proceeding with DIRECT connection (no proxy).")
+    def __init__(self, proxy_list: list = None):
+        self.proxies = proxy_list or []
+        self.banned_proxies = {}  # format: {proxy_url: unban_timestamp}
+
+    def get(self) -> str:
+        if not self.proxies:
             return None
-            
-        selected_proxy = random.choice(available)
-        print(f"[+] Using proxy: {selected_proxy}")
-        return selected_proxy
 
-    def ban(self, proxy: str):
-        """Blacklist proxy for 24 hours"""
-        self.ban_list[proxy] = datetime.now() + timedelta(hours=24)
-        print(f"[-] Banned proxy for 24h: {proxy}")
+        now = time.time()
+        # Clean up expired bans
+        self.banned_proxies = {p: t for p, t in self.banned_proxies.items() if t > now}
+
+        # Find available proxies
+        available = [p for p in self.proxies if p not in self.banned_proxies]
+
+        if not available:
+            print("[!] All proxies are currently benched. Using DIRECT connection.")
+            return None
+
+        return random.choice(available)
+
+    def mark_failed(self, proxy_url: str):
+        if proxy_url:
+            # Bench this proxy for 5 minutes (300 seconds)
+            self.banned_proxies[proxy_url] = time.time() + 300
+            print(f"  [-] Benched proxy for 5 mins: {proxy_url}")
+
+    def mark_ok(self, proxy_url: str):
+        pass  # No action needed for successful requests
