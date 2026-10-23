@@ -1,7 +1,8 @@
-import asyncio
 import random
-from playwright.async_api import async_playwright
+
 import playwright_stealth as stealth
+from playwright.async_api import async_playwright
+
 
 async def fetch_with_stealth(url: str):
     async with async_playwright() as p:
@@ -37,7 +38,7 @@ async def fetch_with_stealth(url: str):
                 "--disable-dev-shm-usage",
                 "--disable-accelerated-2d-canvas",
                 "--disable-gpu",
-            ]
+            ],
         )
 
         context = await browser.new_context(
@@ -86,4 +87,3 @@ async def fetch_with_stealth(url: str):
 
         await browser.close()
         return {"html": html, "status": status}
-
