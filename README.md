@@ -19,7 +19,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 
 <p align="center">
-  <i>Scrape Amazon, Flipkart, and Alibaba without getting blocked. If the site changes, the scraper adapts.</i>
+  <i>Scrape Amazon, Flipkart, and Alibaba without getting blocked. If the  changes, the scraper adapts.</i>
 </p>
 
 </div>
