@@ -302,4 +302,14 @@ Need Help or Custom Data?
     Contact me: Dharmendrakushwaha1137@gmail.com   | https://www.upwork.com/freelancers/~011dabd983b843d312 
 
 </div>
+
+##  Roadmap (v2.0)
+
+We are constantly improving the architecture to make scraping even more resilient and accessible. 
+
+- [x] **v1.1.1:** 6-Tier Extraction Cascade + AI Fallbacks (Current)
+- [ ] **v1.2.0:** Cloud Data Export (AWS S3 & Snowflake integration)
+- [ ] **v1.3.0:** FastAPI REST Endpoint (Trigger scrapes via HTTP requests)
+- [ ] **v2.0.0 (Upcoming):** **Polyglot Orchestrator Architecture**
+  - *Building a Java-based CLI wrapper that manages Docker containers. This will allow non-technical users to run the scraper without installing Python or dealing with C++ build errors. Docker will dynamically provision the isolated Python engine on demand.*
 ```
