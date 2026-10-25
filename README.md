@@ -292,5 +292,14 @@ Python is extremely strict about spaces. If you edited a file, ensure all indent
 
 If this project saved you time, a ⭐ on the repo is always appreciated!
 
+Need Help or Custom Data?
+
+    Don't want to run the code yourself? I can run it for you and deliver a clean CSV/Excel file.
+
+    Need to scrape a specific website that isn't supported? I can add custom selectors for you.
+
+    Facing installation issues? I offer 1-on-1 setup support.
+    Contact me: Dharmendrakushwaha1137@gmail.com   | https://www.upwork.com/freelancers/~011dabd983b843d312 
+
 </div>
 ```
