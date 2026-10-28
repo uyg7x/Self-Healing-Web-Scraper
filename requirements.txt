@@ -13,5 +13,5 @@ python-dotenv
 reportlab>=4.0.0
 requests==2.31.0
 schedule==1.2.1
-streamlit>=1.28.0
+streamlit>=1.66.1
 xlsxwriter>=3.1.0
