@@ -160,7 +160,6 @@ Here is the HTML to analyze:
             target_site,
             base_domain or self._extract_base_domain(html, target_site),
         )
-        prompt = self._build_prompt(search_term, target_site)
         full_prompt = f"{prompt}\n\nHTML Content:\n{cleaned_html}"
 
         try:
