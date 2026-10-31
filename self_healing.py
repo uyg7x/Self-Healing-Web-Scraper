@@ -8,7 +8,7 @@ and remembers it for next time.
 import json
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 from config import SELECTOR_HISTORY_PATH
 
