@@ -1,7 +1,7 @@
 import json
 import logging
 from pathlib import Path
-
+import asyncio
 from camoufox.async_api import AsyncCamoufox
 
 logger = logging.getLogger(__name__)
@@ -35,7 +35,7 @@ class WarmSessionManager:
             ) as browser:
                 page = await browser.new_page()
                 await page.goto(login_url)
-                input("Press Enter after logging in >>> ")
+                await asyncio.to_thread(input, "Press Enter after logging in >>> ")
                 await self.save_cookies(await page.context.cookies())
                 return True
         except Exception as e:
