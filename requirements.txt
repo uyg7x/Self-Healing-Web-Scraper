@@ -9,7 +9,7 @@ patchright>=1.60.0
 plotly>=5.18.0
 proxybroker==0.3.2
 python-dotenv
-reportlab>=4.0.0
+reportlab>=5.1.0
 requests==2.31.0
 schedule==1.2.1
 streamlit>=1.28.0
