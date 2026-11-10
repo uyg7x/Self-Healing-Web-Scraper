@@ -1,0 +1,49 @@
+
+.env
+.env.*
+!.env.example
+data/
+*.db
+*.log
+*.csv
+*.xlsx
+*.pdf
+profiles/
+sessions/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+.venv*/
+venv/
+
+# Caches
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.github/
+
+# Dead code
+legacy/
+
+# Build artifacts
+*.exe
+*.out
+*.o
+*.obj
+dashboard/*.obj
