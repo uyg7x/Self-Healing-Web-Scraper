@@ -1,17 +1,18 @@
-# ============================================================
-#  SECRETS — NEVER COMMIT
-# ============================================================
+
 .env
 .env.*
 !.env.example
 *.pem
 *.key
+*.p12
 secrets/
+secret/
 config_local.py
+.streamlit/secrets.toml
+service-account*.json
+credentials.json
 
-# ============================================================
-#  SESSION / BROWSER DATA (Amazon cookies, Chrome profile!)
-# ============================================================
+
 data/
 scrapoxy/
 *.cookies.json
@@ -19,13 +20,14 @@ cookies.json
 chrome_profile/
 user_data_dir/
 sessions/
+profiles/
 
-# ============================================================
-#  PYTHON
-# ============================================================
+
 __pycache__/
 *.py[cod]
 *$py.class
+*.pyo
+*.pyd
 *.so
 .Python
 build/
@@ -35,10 +37,11 @@ eggs/
 .eggs/
 *.egg
 _pycache_/
+pip-wheel-metadata/
+*.manifest
+*.spec
 
-# ============================================================
-#  VIRTUAL ENVIRONMENTS
-# ============================================================
+
 .venv/
 .venv*/
 venv/
@@ -46,46 +49,105 @@ ENV/
 env/
 .virtualenv/
 
-# ============================================================
-#  CACHES & TOOLING
-# ============================================================
+
 .ruff_cache/
 .pytest_cache/
 .mypy_cache/
 .coverage
+.coverage.*
+coverage.xml
 htmlcov/
 .cache/
-*.log
+.tox/
+.nox/
+.ipynb_checkpoints/
 
-# ============================================================
-#  DATABASES & SCRAPED OUTPUT
-# ============================================================
+
+*.log
+logs/
+*.log.*
+
+
 *.db
 *.sqlite
 *.sqlite3
+*.db-journal
+*.db-wal
 *.csv
 *.xlsx
+*.xls
 *.pdf
-# (uncomment below if you want sample CSVs to be pushed)
-# !sample_data/*.csv
+*.parquet
+*.json.gz
 
-# ============================================================
-#  OS / IDE
-# ============================================================
+
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
 desktop.ini
+$RECYCLE.BIN/
+
 .vscode/
 .idea/
 *.swp
 *.swo
+*.sublime-project
+*.sublime-workspace
 *~
+*.bak
+*.tmp
+*.orig
 
-# ============================================================
-#  NODE (if any tooling uses it)
-# ============================================================
+
 node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
 
-# Scrape artifacts / local credentials
+
+*.exe
+*.out
+*.o
+*.obj
+*.dll
+*.lib
+dashboard/*.obj
+dashboard/*.o
+
+
 amazon_debug.html
 proxies.txt
+diag_*.html
+*.har
+*.zip
+*.tar.gz
+*.7z
+
+
+.docker/
+docker-compose.override.yml
+
+
+!data/.gitkeep# Compiled C dashboard
+*.exe
+*.out
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.class
+*.so
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# OS files
+.DS_Store
+Thumbs.db
