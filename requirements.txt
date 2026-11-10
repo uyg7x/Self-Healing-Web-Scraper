@@ -1,7 +1,7 @@
 beautifulsoup4==4.12.2
 camoufox[geoip]
 curl-cffi>=0.6.0
-google-generativeai==0.8.3
+google-generativeai==0.8.6
 lxml==4.9.3
 openai>=1.30.0
 pandas>=2.1.0
