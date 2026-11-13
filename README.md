@@ -6,7 +6,7 @@
 
 <img src="assets/logo.png" width="150" height="200" alt="Typing SVG" />
 
-### ** Scrape With Tea**
+ ** Scrape With Tea**
 
 [![Python 3.12 | 3.13](https://img.shields.io/badge/Python-3.12%20%7C%203.13-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 [![Camoufox C++ Stealth](https://img.shields.io/badge/Stealth-Camoufox%20C%2B%2B-FF6611?style=for-the-badge&logo=firefox&logoColor=white)](https://github.com/daijro/camoufox)
@@ -52,7 +52,7 @@
 ##  The Scraper Module
 
 <div align="center">
-  <p><em>We build That If  its brea it will Reuild it self</em></p>
+  <p><em>We build That If  its break it will Reuild it self</em></p>
 </div>
 
 ---
@@ -504,10 +504,9 @@ Not a developer, or don't want to spend time configuring Python environments and
 <div align="center">
 
 <!--  Replace YOUR_EMAIL@gmail.com below with your actual Gmail address! -->
-[![Gmail](https://img.shields.io/badge/Email%20Us-YOUR__EMAIL%40gmail.com-EA4335?style=for-the-badge&logo=gmail&logoColor=white)](mailto:YOUR_EMAIL@gmail.com)
+[![Gmail](https://img.shields.io/badge/Email%20Us-YOUR__EMAIL%40gmail.com-EA4335?style=for-the-badge&logo=gmail&logoColor=white)](mailto:dharmendrakushwaha1137@gmail.com)
 [![GitHub](https://img.shields.io/badge/GitHub-@uyg7x-181717?style=for-the-badge&logo=github)](https://github.com/uyg7x)
-[![Portfolio](https://img.shields.io/badge/Portfolio-dharmendrapjy.online-00C7B7?style=for-the-badge&logo=google-chrome&logoColor=white)](https://dharmendrapjy.online)
-[![Website](https://img.shields.io/badge/Website-dharmendrapjy.in-4285F4?style=for-the-badge&logo=safari&logoColor=white)](https://dharmendrapjy.in)
+[![Portfolio](https://img.shields.io/badge/Portfolio-dharmendrapjy.online-00C7B7?style=for-the-badge&logo=google-chrome&logoColor=white)](https://www.dharmendrapjy.online)
 [![Open Issue](https://img.shields.io/badge/Need%20Support%3F-Open%20a%20GitHub%20Issue-FF6F00?style=for-the-badge&logo=github)](https://github.com/uyg7x/Self-Healing-Web-Scraper/issues)
 
 </div>
@@ -524,6 +523,6 @@ If this project helped you, inspired you, or saved you money:
 1.  **Click the `⭐ Star` button** at the top-right corner of this GitHub page!
 2.  **Fork & Share this repository** with your friends, classmates, developer groups, LinkedIn, X (Twitter), and Reddit!
 
-**Built with ❤️, relentless research, and engineering by (`@uyg7x`)**
+**Built with ❤️, relentless research, and engineering by (`@uyg7x`) , (`@pjysupplierr`)**
 
 </div>
