@@ -64,11 +64,11 @@
   <tr>
     <td align="center" width="50%">
       <img src="assets/cload.png" alt="CLI Live Extraction Output" width="100%" />
-      <br /><b>1. Interactive CLI & Live Healing Logs</b>
+      <br /><b>1. Clean and Sorted File</b>
     </td>
     <td align="center" width="50%">
       <img src="assets/load1.png" alt="Streamlit Analytics Dashboard" width="100%" />
-      <br /><b>2. Streamlit Visual Price Intelligence Dashboard</b>
+      <br /><b>2. Price Intelligence Dashboard</b>
     </td>
   </tr>
   <tr>
