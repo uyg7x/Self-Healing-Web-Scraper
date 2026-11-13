@@ -4,7 +4,7 @@
 <!-- 1. SCRAPER NAME & HERO HEADER                             -->
 <!-- ========================================================= -->
 
-<img src="[https://readme-typing-svg.demolab.com?font=Fira+Code&weight=700&size=28&pause=1000&color=00F7A2&center=true&vCenter=true&width=800&lines=Self-Healing+E-Commerce+Web+Scraper;6-Tier+AI+%26+Heuristic+Extraction+Cascade;Hybrid+TLS+%2B+Camoufox+C%2B%2B+Stealth+Engine;100%25+Free+Forever+%E2%80%94+Just+Scrape+%26+Run](https://readme-typing-svg.demolab.com?font=Fira+Code&weight=700&size=28&pause=1000&color=00F7A2&center=true&vCenter=true&width=800&lines=Self-Healing+E-Commerce+Web+Scraper;6-Tier+AI+%26+Heuristic+Extraction+Cascade;Hybrid+TLS+%2B+Camoufox+C%2B%2B+Stealth+Engine;100%25+Free+Forever+%E2%80%94+Just+Scrape+%26+Run)!" alt="Typing SVG" />
+<img src="assets/logo.png" alt="Typing SVG" />
 
 #   Scraper
 ### ** Scrape With Tea**
@@ -53,7 +53,6 @@
 ##  The Scraper Module
 
 <div align="center">
-  <img src="assets/module-overview.png" alt="Self-Healing Web Scraper Main Module" width="95%" />
   <p><em>We build That If  its brea it will Reuild it self</em></p>
 </div>
 
@@ -217,13 +216,12 @@ sequenceDiagram
 
 <div align="center">
 
-<!-- 💡 HOW TO ADD YOUR VIDEO:
-     1. Click "Edit" on this README.md on GitHub.com
-     2. Drag and drop your .mp4 video file directly below this comment!
-     3. Or place a .gif file at assets/scraper-working-demo.gif -->
+
 
 <img src="assets/scraper-working-demo.gif" alt="Live Video of Self-Healing Web Scraper Working" width="90%" />
-[https://www.youtube.com/watch?v=OC25hvYn0W4](https://www.youtube.com/watch?v=OC25hvYn0W4)
+<a href="https://www.youtube.com/watch?v=OC25hvYn0W4"><img src="assets/ytlogo.png" alt="Watch Video"></a>
+
+
 
 
 <p><em> Above: Watch the scraper take a search query, bypass anti-bot protections, execute the self-healing extraction cascade, filter out junk accessories, and populate the live dashboard.</em></p>
@@ -291,19 +289,14 @@ Below are real outputs captured by testers running different product searches ac
 <table>
   <tr>
     <td align="center" width="33%">
-      <img src="assets/tester-search-1.png" alt="Tester Search 1 Output" width="100%" />
-      <br /><b>Test 1: Flagship Smartphone Search</b><br />
+      <img src="assets/down1.png" alt="Tester Search 1 Output" width="100%" />
+      <br /><b>Test 1:</b><br />
       <em>Cross-platform price extraction & accessory filtering</em>
     </td>
     <td align="center" width="33%">
-      <img src="assets/tester-search-2.png" alt="Tester Search 2 Output" width="100%" />
-      <br /><b>Test 2: Laptop & Hardware Query</b><br />
+      <img src="assets/down2.png" alt="Tester Search 2 Output" width="100%" />
+      <br /><b>Test 2:</b><br />
       <em>High-accuracy spec matching & INR normalization</em>
-    </td>
-    <td align="center" width="33%">
-      <img src="assets/tester-search-3.png" alt="Tester Search 3 Output" width="100%" />
-      <br /><b>Test 3: Audio & Wearables Search</b><br />
-      <em>Fast-path TLS fetch + JSON-LD extraction</em>
     </td>
   </tr>
 </table>
@@ -313,20 +306,9 @@ Below are real outputs captured by testers running different product searches ac
   <tr>
     <td align="center" width="33%">
       <img src="assets/tester-search-4.png" alt="Tester Search 4 Output" width="100%" />
-      <br /><b>Test 4: Home Appliances Search</b><br />
+      <br /><b>Test 3: Home Appliances Search</b><br />
       <em>Camoufox stealth escalation + CSS self-healing</em>
     </td>
-    <td align="center" width="33%">
-      <img src="assets/tester-search-5.png" alt="Tester Search 5 Output" width="100%" />
-      <br /><b>Test 5: Bulk Multi-Page Stress Test</b><br />
-      <em>Zero blocks across consecutive pages with clean CSV export</em>
-    </td>
-    <td align="center" width="33%">
-      <img src="assets/tester-search-6.png" alt="Tester Search 6 Output" width="100%" />
-      <br /><b>Test 6: Live Dashboard & KPI Comparison</b><br />
-      <em>Interactive Plotly price distribution for tester queries</em>
-    </td>
-  </tr>
 </table>
 
 ---
@@ -378,8 +360,8 @@ Self-Healing-Web-Scraper/
 
 ```powershell
 # 1. Clone the repository and enter the project folder
-git clone https://github.com/uyg7x/Self-Healing-Web-Scraper.git
-cd Self-Healing-Web-Scraper
+git clone https://github.com/uyg7x/Tea_Scraper.git
+cd Tea_Scraper
 
 # 2. Create a virtual environment using Python 3.12 (or 3.13)
 py -3.12 -m venv .venv312
@@ -405,8 +387,8 @@ playwright install
 brew install python@3.12 git
 
 # 2. Clone the repository and enter the folder
-git clone https://github.com/uyg7x/Self-Healing-Web-Scraper.git
-cd Self-Healing-Web-Scraper
+git clone https://github.com/uyg7x/Tea_Scraper.git
+cd Tea_Scraper
 
 # 3. Create and activate the virtual environment
 python3.12 -m venv .venv312
@@ -429,8 +411,8 @@ sudo apt update && sudo apt install -y git python3.12 python3.12-venv python3-pi
   libgtk-3-0 libdbus-glib-1-2 libxt6 libx11-xcb1 libasound2
 
 # 2. Clone the repository and enter the directory
-git clone https://github.com/uyg7x/Self-Healing-Web-Scraper.git
-cd Self-Healing-Web-Scraper
+git clone https://github.com/uyg7x/Tea_Scraper.git
+cd Tea_Scraper
 
 # 3. Create and activate the virtual environment
 python3.12 -m venv .venv312
@@ -456,6 +438,11 @@ python main.py
 
 # STEP 3: Open the interactive visual dashboard in your browser
 streamlit run dashboard.py
+\\ 
+# Table Format and fast Loading and sorting alv
+gcc -O2 -Wall dashboard\dashboard.c -o dashboard\dashboard.exe -lws2_32
+.\dashboard\dashboard.exe
+
 ```
 
 ---
