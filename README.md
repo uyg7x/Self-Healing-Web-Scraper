@@ -4,9 +4,8 @@
 <!-- 1. SCRAPER NAME & HERO HEADER                             -->
 <!-- ========================================================= -->
 
-<img src="assets/logo.png" width="150" height="50" alt="Typing SVG" />
+<img src="assets/logo.png" width="150" height="200" alt="Typing SVG" />
 
-#   Scraper
 ### ** Scrape With Tea**
 
 [![Python 3.12 | 3.13](https://img.shields.io/badge/Python-3.12%20%7C%203.13-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
