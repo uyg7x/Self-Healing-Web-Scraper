@@ -6,7 +6,7 @@
 
 <img src="[https://readme-typing-svg.demolab.com?font=Fira+Code&weight=700&size=28&pause=1000&color=00F7A2&center=true&vCenter=true&width=800&lines=Self-Healing+E-Commerce+Web+Scraper;6-Tier+AI+%26+Heuristic+Extraction+Cascade;Hybrid+TLS+%2B+Camoufox+C%2B%2B+Stealth+Engine;100%25+Free+Forever+%E2%80%94+Just+Scrape+%26+Run](https://readme-typing-svg.demolab.com?font=Fira+Code&weight=700&size=28&pause=1000&color=00F7A2&center=true&vCenter=true&width=800&lines=Self-Healing+E-Commerce+Web+Scraper;6-Tier+AI+%26+Heuristic+Extraction+Cascade;Hybrid+TLS+%2B+Camoufox+C%2B%2B+Stealth+Engine;100%25+Free+Forever+%E2%80%94+Just+Scrape+%26+Run)!" alt="Typing SVG" />
 
-#  Self-Healing Web Scraper
+#   Scraper
 ### ** Scrape With Tea**
 
 [![Python 3.12 | 3.13](https://img.shields.io/badge/Python-3.12%20%7C%203.13-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
@@ -50,11 +50,11 @@
 
 ---
 
-##  The Self-Healing Scraper Module
+##  The Scraper Module
 
 <div align="center">
   <img src="assets/module-overview.png" alt="Self-Healing Web Scraper Main Module" width="95%" />
-  <p><em>Above: The core Self-Healing Web Scraper module orchestrating hybrid stealth fetching, 6-tier extraction, and real-time validation.</em></p>
+  <p><em>We build That If  its brea it will Reuild it self</em></p>
 </div>
 
 ---
@@ -88,7 +88,7 @@
 
 ##  Detailed Overview: What Is This Scraper & What Can It Do?
 
-The **Self-Healing Web Scraper** is an enterprise-grade, open-source e-commerce data extraction and price comparison system built for **both everyday users and developers**.
+The ** Scraper** is an enterprise-grade, open-source e-commerce data extraction and price comparison system built for **both everyday users and developers**.
 
 Whether you want to compare product prices across **Amazon, Flipkart, and Alibaba**, track competitor pricing over time, trigger automated price-drop alerts, or build clean datasets for machine learning — this tool handles the entire pipeline from start to finish.
 
@@ -136,7 +136,7 @@ A human looks at visual proximity, currency symbols (`₹`, `$`), text length, a
 By combining **all six methods into a single self-healing cascade**, we achieved near-100% extraction continuity:
 
 ```text
-Self-Healing Scraper Architecture
+ Scraper Architecture
 │
 ├── 1. Fetching Layer (Hybrid Cost-Optimized Cascade)
 │   ├── Fast Path: curl_cffi (TLS/JA3/JA4 Chrome Impersonation -> ~200ms, 0% Browser RAM)
@@ -223,7 +223,7 @@ sequenceDiagram
      3. Or place a .gif file at assets/scraper-working-demo.gif -->
 
 <img src="assets/scraper-working-demo.gif" alt="Live Video of Self-Healing Web Scraper Working" width="90%" />
-https://www.youtube.com/watch?v=OC25hvYn0W4
+[https://www.youtube.com/watch?v=OC25hvYn0W4](https://www.youtube.com/watch?v=OC25hvYn0W4)
 
 
 <p><em> Above: Watch the scraper take a search query, bypass anti-bot protections, execute the self-healing extraction cascade, filter out junk accessories, and populate the live dashboard.</em></p>
