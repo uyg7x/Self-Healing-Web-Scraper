@@ -4,7 +4,7 @@
 <!-- 1. SCRAPER NAME & HERO HEADER                             -->
 <!-- ========================================================= -->
 
-<img src="assets/logo.png" alt="Typing SVG" />
+<img src="assets/logo.png" width="150" height="50" alt="Typing SVG" />
 
 #   Scraper
 ### ** Scrape With Tea**
